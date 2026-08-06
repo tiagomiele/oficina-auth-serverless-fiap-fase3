@@ -1,0 +1,12 @@
+target/
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+*.log
