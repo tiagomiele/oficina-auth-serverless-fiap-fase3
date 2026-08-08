@@ -3,9 +3,8 @@ package br.com.oficina.auth.infrastructure;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import br.com.oficina.auth.config.AuthConfig;
+import java.security.Key;
 import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
 
@@ -21,8 +20,8 @@ class JwtServiceTest {
             null,
             null,
             null,
-            pem(pair.getPrivate()),
-            pem(pair.getPublic()),
+            encoded(pair.getPrivate()),
+            encoded(pair.getPublic()),
             "oficina-auth-serverless",
             "oficina-backend",
             900);
@@ -34,15 +33,7 @@ class JwtServiceTest {
     assertEquals("CLIENTE", claims.get("role", String.class));
   }
 
-  private static String pem(PrivateKey key) {
-    return "-----BEGIN PRIVATE KEY-----\n"
-        + Base64.getMimeEncoder(64, new byte[] {'\n'}).encodeToString(key.getEncoded())
-        + "\n-----END PRIVATE KEY-----";
-  }
-
-  private static String pem(PublicKey key) {
-    return "-----BEGIN PUBLIC KEY-----\n"
-        + Base64.getMimeEncoder(64, new byte[] {'\n'}).encodeToString(key.getEncoded())
-        + "\n-----END PUBLIC KEY-----";
+  private static String encoded(Key key) {
+    return Base64.getEncoder().encodeToString(key.getEncoded());
   }
 }
