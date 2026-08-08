@@ -1,0 +1,14 @@
+aws_region  = "us-west-2"
+environment = "production"
+
+lab_role_arn       = "arn:aws:iam::ACCOUNT_ID:role/LabRole"
+lambda_security_group_id = "sg-xxxxxxxx"
+private_subnet_ids        = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
+backend_base_url    = null
+jwt_issuer          = "oficina-auth-serverless"
+jwt_audience        = "oficina-backend"
+jwt_ttl_seconds     = 900
+
+# Configure como variáveis sensíveis no HCP Terraform:
+# db_url, db_user, db_password e jwt_private_key.
+# Configure jwt_public_key no HCP e também no GitHub Environment do backend.

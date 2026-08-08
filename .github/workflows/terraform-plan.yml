@@ -1,0 +1,53 @@
+name: Terraform plan
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente HCP Terraform
+        required: true
+        type: choice
+        options:
+          - homolog
+          - production
+
+jobs:
+  plan:
+    name: Plan (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ inputs.environment == 'homolog' && vars.TF_WORKSPACE_HOMOLOG || vars.TF_WORKSPACE_PRODUCTION }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Package Lambda artifact
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -DskipTests package spotless:check
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Validate HCP configuration
+        run: |
+          test -n "$TF_CLOUD_ORGANIZATION"
+          test -n "$TF_WORKSPACE"
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform plan
+        run: terraform plan -input=false -no-color

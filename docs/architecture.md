@@ -12,6 +12,7 @@
 ## Claims
 
 - `sub`: identificador técnico do cliente;
+- `client_id`: o mesmo identificador numérico do cliente;
 - `role`: `CLIENTE`;
 - `iss`, `aud`, `iat`, `exp` e `jti`.
 
@@ -21,4 +22,12 @@
 - RDS: `oficina-database-infra-fiap-fase3`;
 - APIs de negócio: `oficina-backend-fiap-fase3`.
 
-O contrato OpenAPI será versionado antes da implementação da Lambda.
+## Rotas protegidas
+
+O API Gateway usa o Authorizer somente nas operações do cliente:
+
+- consulta de status e histórico da OS;
+- aprovação e rejeição de orçamento;
+- confirmação de pagamento.
+
+Rotas administrativas não passam pelo Authorizer de cliente. O backend valida novamente a assinatura RSA, os claims e a propriedade da OS.
