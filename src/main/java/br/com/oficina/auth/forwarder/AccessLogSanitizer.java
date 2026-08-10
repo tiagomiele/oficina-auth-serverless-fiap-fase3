@@ -32,7 +32,8 @@ public final class AccessLogSanitizer {
           "integrationLatency",
           "responseLatency",
           "responseLength",
-          "errorMessage");
+          "errorMessage",
+          "authorizerError");
 
   private AccessLogSanitizer() {}
 

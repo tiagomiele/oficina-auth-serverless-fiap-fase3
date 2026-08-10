@@ -18,7 +18,8 @@ resource "aws_lambda_function" "login" {
   role          = var.lab_role_arn
   runtime       = "java21"
   architectures = ["arm64"]
-  handler       = "br.com.oficina.auth.handler.CpfAuthenticationHandler::handleRequest"
+  handler       = var.newrelic_instrumentation_enabled ? local.wrapper_handler : local.login_handler
+  layers        = local.newrelic_layers
 
   filename         = var.lambda_package_path
   source_code_hash = filebase64sha256(var.lambda_package_path)
@@ -31,22 +32,34 @@ resource "aws_lambda_function" "login" {
   }
 
   environment {
-    variables = {
-      DB_URL          = var.db_url
-      DB_USER         = var.db_user
-      DB_PASSWORD     = var.db_password
-      JWT_PRIVATE_KEY = var.jwt_private_key
-      JWT_PUBLIC_KEY  = var.jwt_public_key
-      JWT_ISSUER      = var.jwt_issuer
-      JWT_AUDIENCE    = var.jwt_audience
-      JWT_TTL_SECONDS = tostring(var.jwt_ttl_seconds)
-    }
+    variables = merge(
+      {
+        DB_URL                   = var.db_url
+        DB_USER                  = var.db_user
+        DB_PASSWORD              = var.db_password
+        JWT_PRIVATE_KEY          = var.jwt_private_key
+        JWT_PUBLIC_KEY           = var.jwt_public_key
+        JWT_ISSUER               = var.jwt_issuer
+        JWT_AUDIENCE             = var.jwt_audience
+        JWT_TTL_SECONDS          = tostring(var.jwt_ttl_seconds)
+        ENVIRONMENT              = var.environment
+        NEW_RELIC_LAMBDA_HANDLER = local.login_handler
+      },
+      local.newrelic_environment
+    )
   }
 
   logging_config {
     log_format            = "JSON"
     application_log_level = "INFO"
     system_log_level      = "WARN"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !var.newrelic_instrumentation_enabled || local.newrelic_credentials_present
+      error_message = "Informe newrelic_license_key e newrelic_account_id para instrumentar as Lambdas."
+    }
   }
 
   depends_on = [aws_cloudwatch_log_group.login]
@@ -58,7 +71,8 @@ resource "aws_lambda_function" "authorizer" {
   role          = var.lab_role_arn
   runtime       = "java21"
   architectures = ["arm64"]
-  handler       = "br.com.oficina.auth.handler.JwtAuthorizerHandler::handleRequest"
+  handler       = var.newrelic_instrumentation_enabled ? local.wrapper_handler : local.authorizer_handler
+  layers        = local.newrelic_layers
 
   filename         = var.lambda_package_path
   source_code_hash = filebase64sha256(var.lambda_package_path)
@@ -66,11 +80,16 @@ resource "aws_lambda_function" "authorizer" {
   timeout          = 10
 
   environment {
-    variables = {
-      JWT_PUBLIC_KEY = var.jwt_public_key
-      JWT_ISSUER     = var.jwt_issuer
-      JWT_AUDIENCE   = var.jwt_audience
-    }
+    variables = merge(
+      {
+        JWT_PUBLIC_KEY           = var.jwt_public_key
+        JWT_ISSUER               = var.jwt_issuer
+        JWT_AUDIENCE             = var.jwt_audience
+        ENVIRONMENT              = var.environment
+        NEW_RELIC_LAMBDA_HANDLER = local.authorizer_handler
+      },
+      local.newrelic_environment
+    )
   }
 
   logging_config {

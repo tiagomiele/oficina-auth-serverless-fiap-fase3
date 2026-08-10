@@ -103,6 +103,108 @@ variable "lambda_package_path" {
   default     = "target/oficina-auth.jar"
 }
 
+variable "newrelic_instrumentation_enabled" {
+  description = "Ativa a camada do agente Java do New Relic nas Lambdas de autenticação."
+  type        = bool
+  default     = false
+}
+
+variable "newrelic_layer_arn" {
+  description = "ARN completo da camada do agente Java. Nulo monta o ARN pelos campos abaixo."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "newrelic_layer_account_id" {
+  description = "Conta AWS que publica as camadas do New Relic."
+  type        = string
+  default     = "451483290750"
+}
+
+variable "newrelic_layer_name" {
+  description = "Nome da camada do agente Java. O padrão é a variante slim para ARM64."
+  type        = string
+  default     = "NewRelicAgentJavaARM64-slim"
+}
+
+variable "newrelic_layer_version" {
+  description = "Versão da camada do agente Java publicada na região."
+  type        = number
+  default     = 1
+}
+
+variable "newrelic_license_key" {
+  description = "Ingest license key do New Relic. Obrigatória quando a instrumentação está ativa."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "newrelic_account_id" {
+  description = "Identificador da conta New Relic."
+  type        = string
+  default     = ""
+}
+
+variable "newrelic_trusted_account_key" {
+  description = "Conta pai do New Relic usada em distributed tracing. Vazio reutiliza newrelic_account_id."
+  type        = string
+  default     = ""
+}
+
+variable "newrelic_distributed_tracing_enabled" {
+  description = "Habilita distributed tracing no agente."
+  type        = bool
+  default     = true
+}
+
+variable "newrelic_log_level" {
+  description = "Nível de log do agente Java."
+  type        = string
+  default     = "warning"
+
+  validation {
+    condition     = contains(["off", "severe", "warning", "info", "fine", "finer", "finest"], var.newrelic_log_level)
+    error_message = "newrelic_log_level deve ser um nível suportado pelo agente Java."
+  }
+}
+
+variable "newrelic_send_function_logs" {
+  description = "Permite que a extensão do New Relic envie os logs da função além do CloudWatch."
+  type        = bool
+  default     = false
+}
+
+variable "newrelic_log_forwarding_enabled" {
+  description = "Cria a Lambda que encaminha o log de acesso sanitizado do API Gateway para o New Relic."
+  type        = bool
+  default     = false
+}
+
+variable "newrelic_logs_endpoint" {
+  description = "Endpoint da Log API do New Relic. Use o domínio .eu para contas europeias."
+  type        = string
+  default     = "https://log-api.newrelic.com/log/v1"
+
+  validation {
+    condition     = can(regex("^https://[^/]+/log/v1$", var.newrelic_logs_endpoint))
+    error_message = "newrelic_logs_endpoint deve ser uma URL HTTPS da Log API do New Relic."
+  }
+}
+
+variable "newrelic_access_log_type" {
+  description = "Valor de logtype aplicado aos registros de acesso enviados ao New Relic."
+  type        = string
+  default     = "api-gateway-access"
+}
+
+variable "api_detailed_metrics_enabled" {
+  description = "Habilita métricas detalhadas por rota no stage do HTTP API."
+  type        = bool
+  default     = true
+}
+
 variable "backend_base_url" {
   description = "URL pública do LoadBalancer do backend, sem barra final. Nulo cria somente /auth/cpf."
   type        = string
