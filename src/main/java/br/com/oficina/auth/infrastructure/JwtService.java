@@ -1,8 +1,14 @@
 package br.com.oficina.auth.infrastructure;
 
 import br.com.oficina.auth.config.AuthConfig;
+import br.com.oficina.auth.domain.TokenValidationException;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.IncorrectClaimException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MissingClaimException;
+import io.jsonwebtoken.security.SignatureException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -48,20 +54,40 @@ public final class JwtService {
   }
 
   public Claims verify(String token) {
-    Claims claims =
-        Jwts.parser()
-            .verifyWith(publicKey)
-            .requireIssuer(config.jwtIssuer())
-            .build()
-            .parseSignedClaims(token)
-            .getPayload();
+    if (token == null || token.isBlank()) {
+      throw new TokenValidationException("TOKEN_MISSING");
+    }
+    Claims claims = parse(token);
     if (!hasAudience(claims.get("aud"), config.jwtAudience())) {
-      throw new IllegalArgumentException("Audiência JWT inválida");
+      throw new TokenValidationException("TOKEN_AUDIENCE_INVALID");
     }
     if (!"CLIENTE".equals(claims.get("role", String.class))) {
-      throw new IllegalArgumentException("Role JWT inválida");
+      throw new TokenValidationException("TOKEN_ROLE_INVALID");
     }
     return claims;
+  }
+
+  private Claims parse(String token) {
+    try {
+      return Jwts.parser()
+          .verifyWith(publicKey)
+          .requireIssuer(config.jwtIssuer())
+          .build()
+          .parseSignedClaims(token)
+          .getPayload();
+    } catch (ExpiredJwtException exception) {
+      throw new TokenValidationException("TOKEN_EXPIRED", exception);
+    } catch (SignatureException exception) {
+      throw new TokenValidationException("TOKEN_SIGNATURE_INVALID", exception);
+    } catch (IncorrectClaimException | MissingClaimException exception) {
+      throw new TokenValidationException(claimErrorCode(exception.getClaimName()), exception);
+    } catch (JwtException | IllegalArgumentException exception) {
+      throw new TokenValidationException("TOKEN_MALFORMED", exception);
+    }
+  }
+
+  private static String claimErrorCode(String claimName) {
+    return Claims.ISSUER.equals(claimName) ? "TOKEN_ISSUER_INVALID" : "TOKEN_CLAIM_INVALID";
   }
 
   private static boolean hasAudience(Object audience, String expected) {

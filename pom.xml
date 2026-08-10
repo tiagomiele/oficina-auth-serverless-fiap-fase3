@@ -13,6 +13,7 @@
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <jjwt.version>0.12.6</jjwt.version>
+    <newrelic.api.version>8.21.0</newrelic.api.version>
     <jackson.version>2.17.2</jackson.version>
     <junit.version>5.11.0</junit.version>
   </properties>
@@ -54,6 +55,11 @@
       <artifactId>jjwt-jackson</artifactId>
       <version>${jjwt.version}</version>
       <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.newrelic.agent.java</groupId>
+      <artifactId>newrelic-api</artifactId>
+      <version>${newrelic.api.version}</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
