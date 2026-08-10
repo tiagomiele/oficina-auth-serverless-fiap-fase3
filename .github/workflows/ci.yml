@@ -46,6 +46,12 @@ jobs:
       - name: Terraform validate
         run: terraform validate -no-color
 
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: TFLint
+        run: tflint --recursive
+
       - name: Trivy infrastructure scan
         uses: aquasecurity/trivy-action@0.35.0
         with:

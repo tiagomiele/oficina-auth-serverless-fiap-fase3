@@ -1,0 +1,121 @@
+name: Terraform deploy
+
+on:
+  push:
+    branches: [homolog, main]
+  workflow_dispatch:
+    inputs:
+      apply_enabled:
+        description: Executa apply após aprovação do ambiente
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan (${{ github.ref_name == 'main' && 'production' || 'homolog' }})
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'homolog' }}
+    permissions:
+      contents: read
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ github.ref_name == 'main' && vars.TF_WORKSPACE_PRODUCTION || vars.TF_WORKSPACE_HOMOLOG }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Package Lambda artifact
+        run: |
+          chmod +x mvnw
+          ./mvnw -B verify spotless:check
+
+      - name: Validate AWS Academy session
+        run: ./scripts/validate-aws-session.sh
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Validate HCP configuration
+        run: |
+          set -euo pipefail
+          test -n "$TF_CLOUD_ORGANIZATION" || { echo "TF_CLOUD_ORGANIZATION não configurada no ambiente."; exit 1; }
+          test -n "$TF_WORKSPACE" || { echo "Workspace do ambiente não configurado."; exit 1; }
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform plan
+        run: terraform plan -input=false -no-color
+
+  apply:
+    name: Apply (${{ github.ref_name == 'main' && 'production' || 'homolog' }})
+    needs: plan
+    if: github.event_name == 'workflow_dispatch' && inputs.apply_enabled == 'true'
+    runs-on: ubuntu-latest
+    # O ambiente exige aprovação manual dos revisores configurados no GitHub.
+    environment: ${{ github.ref_name == 'main' && 'production-apply' || 'homolog-apply' }}
+    permissions:
+      contents: read
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ github.ref_name == 'main' && vars.TF_WORKSPACE_PRODUCTION || vars.TF_WORKSPACE_HOMOLOG }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Package Lambda artifact
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -DskipTests package spotless:check
+
+      - name: Validate AWS Academy session
+        run: ./scripts/validate-aws-session.sh
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Confirm apply gate
+        run: |
+          set -euo pipefail
+          if [ "${{ vars.TF_APPLY_ENABLED }}" != "true" ]; then
+            echo "TF_APPLY_ENABLED não está habilitada no ambiente. Apply bloqueado." >&2
+            exit 1
+          fi
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform apply
+        run: terraform apply -input=false -no-color -auto-approve
