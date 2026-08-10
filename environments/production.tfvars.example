@@ -9,6 +9,14 @@ jwt_issuer          = "oficina-auth-serverless"
 jwt_audience        = "oficina-backend"
 jwt_ttl_seconds     = 900
 
+api_detailed_metrics_enabled = true
+
+newrelic_instrumentation_enabled = false
+newrelic_layer_version           = 1
+newrelic_account_id              = ""
+newrelic_log_forwarding_enabled  = false
+
 # Configure como variáveis sensíveis no HCP Terraform:
 # db_url, db_user, db_password e jwt_private_key.
 # Configure jwt_public_key no HCP e também no GitHub Environment do backend.
+# Configure newrelic_license_key como variável sensível antes de habilitar a instrumentação.

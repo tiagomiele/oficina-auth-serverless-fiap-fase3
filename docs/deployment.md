@@ -9,7 +9,22 @@ O deploy utilizará AWS Academy Learner Lab e deverá reutilizar a `LabRole`. A 
 | `homolog` | Homologação |
 | `main` | Produção |
 
-Credenciais temporárias serão configuradas em GitHub Environments e renovadas quando o laboratório reiniciar. Nenhuma credencial será versionada.
+Credenciais temporárias são configuradas em GitHub Environments e renovadas quando o laboratório reinicia. Nenhuma credencial é versionada.
+
+GitHub Environments usados pelos workflows:
+
+| Environment | Uso |
+|---|---|
+| `homolog` | Plan de homologação a partir de `homolog` |
+| `production` | Plan de produção a partir de `main` |
+| `homolog-apply` | Aprovação manual do apply de homologação |
+| `production-apply` | Aprovação manual e explícita do apply de produção |
+
+Secrets por environment: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `TF_API_TOKEN`.
+
+Variables por environment: `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE_HOMOLOG`, `TF_WORKSPACE_PRODUCTION`, `AWS_REGION` e `TF_APPLY_ENABLED`.
+
+O `apply` só executa quando o disparo é manual com `apply_enabled=true`, o environment de apply aprova a execução e `TF_APPLY_ENABLED` vale `true`. Qualquer condição ausente falha o job.
 
 ## Workspaces HCP Terraform
 
@@ -35,7 +50,50 @@ Variáveis sensíveis:
 
 - `db_url`, `db_user` e `db_password`;
 - `jwt_private_key` em PKCS#8 PEM;
-- `jwt_public_key` em PEM, que também deve ser configurada no backend.
+- `jwt_public_key` em PEM, que também deve ser configurada no backend;
+- `newrelic_license_key`, quando a instrumentação estiver habilitada.
+
+As variáveis de observabilidade estão documentadas em [Observabilidade](observability.md).
+
+## Comandos exatos
+
+Validação local sem custo e sem credenciais remotas:
+
+```bash
+./mvnw -B verify spotless:check
+terraform fmt -check -recursive
+terraform init -backend=false -input=false
+terraform validate -no-color
+tflint --recursive
+```
+
+Plan com credenciais do laboratório:
+
+```bash
+export TF_CLOUD_ORGANIZATION=<organizacao>
+export TF_WORKSPACE=oficina-auth-homolog   # ou oficina-auth-production
+./scripts/validate-aws-session.sh
+./mvnw -B -DskipTests package
+terraform init -input=false
+terraform plan -input=false -no-color
+```
+
+Apply, somente após aprovação explícita:
+
+```bash
+terraform apply -input=false -no-color
+```
+
+## Troubleshooting
+
+`ExpiredToken`, `RequestExpired` ou `InvalidClientTokenId` no plan indicam sessão do Learner Lab expirada. O laboratório encerra a sessão periodicamente e as credenciais são temporárias.
+
+1. reinicie o laboratório e copie as três credenciais atuais em **AWS Details**;
+2. atualize `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` no GitHub Environment e no workspace HCP;
+3. confirme com `./scripts/validate-aws-session.sh`, que falha explicitamente quando falta credencial ou o token expirou;
+4. reexecute o workflow.
+
+O script nunca é silenciosamente ignorado: credencial ausente ou expirada interrompe o job antes de qualquer chamada Terraform.
 
 ## Ordem segura
 
