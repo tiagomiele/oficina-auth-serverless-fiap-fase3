@@ -1,5 +1,6 @@
 locals {
-  name = "${var.project_name}-${var.environment}"
+  name         = "${var.project_name}-${var.environment}"
+  lab_role_arn = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
 }
 
 resource "aws_cloudwatch_log_group" "login" {
@@ -15,7 +16,7 @@ resource "aws_cloudwatch_log_group" "authorizer" {
 resource "aws_lambda_function" "login" {
   function_name = "${local.name}-login"
   description   = "Autenticação de cliente por CPF"
-  role          = var.lab_role_arn
+  role          = local.lab_role_arn
   runtime       = "java21"
   architectures = ["arm64"]
   handler       = var.newrelic_instrumentation_enabled ? local.wrapper_handler : local.login_handler
@@ -68,7 +69,7 @@ resource "aws_lambda_function" "login" {
 resource "aws_lambda_function" "authorizer" {
   function_name = "${local.name}-authorizer"
   description   = "Validação de JWT para rotas protegidas"
-  role          = var.lab_role_arn
+  role          = local.lab_role_arn
   runtime       = "java21"
   architectures = ["arm64"]
   handler       = var.newrelic_instrumentation_enabled ? local.wrapper_handler : local.authorizer_handler

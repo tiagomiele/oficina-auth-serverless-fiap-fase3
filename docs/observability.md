@@ -55,17 +55,13 @@ Quando `newrelic_instrumentation_enabled = false`, nenhuma camada é anexada, o 
 
 ### Configuração da camada
 
-1. Confirme a versão publicada da camada na região do laboratório:
+Execute no repositório do backend:
 
-```bash
-aws lambda list-layer-versions \
-  --layer-name arn:aws:lambda:us-west-2:451483290750:layer:NewRelicAgentJavaARM64-slim \
-  --query 'LayerVersions[0].Version'
+```powershell
+.\scripts\configure-environment.ps1 -Environment homolog -ConfigureNewRelic
 ```
 
-2. Defina `newrelic_layer_version` com esse valor.
-3. Cadastre `newrelic_license_key` como variável sensível no workspace HCP.
-4. Ative `newrelic_instrumentation_enabled = true` e execute o plan.
+O script descobre automaticamente a versão pública mais recente da camada Java ARM64 na região do laboratório, guarda as chaves fora do Git e sincroniza `newrelic_layer_version`, `newrelic_license_key`, `newrelic_account_id`, instrumentação e forwarding no HCP Terraform. Repita para `production`; depois revise o plan antes de autorizar o apply.
 
 ## Monitoramento do API Gateway
 

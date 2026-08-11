@@ -9,7 +9,7 @@ O deploy utilizará AWS Academy Learner Lab e deverá reutilizar a `LabRole`. A 
 | `homolog` | Homologação |
 | `main` | Produção |
 
-Credenciais temporárias são configuradas em GitHub Environments e renovadas quando o laboratório reinicia. Nenhuma credencial é versionada.
+Credenciais temporárias são renovadas uma única vez pelo script central do backend e propagadas aos GitHub Environments e ao Variable Set HCP. Nenhuma credencial é versionada.
 
 GitHub Environments usados pelos workflows:
 
@@ -20,9 +20,7 @@ GitHub Environments usados pelos workflows:
 | `homolog-apply` | Aprovação manual do apply de homologação |
 | `production-apply` | Aprovação manual e explícita do apply de produção |
 
-Secrets por environment: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `TF_API_TOKEN`.
-
-Variables por environment: `TF_CLOUD_ORGANIZATION`, `TF_WORKSPACE_HOMOLOG`, `TF_WORKSPACE_PRODUCTION`, `AWS_REGION` e `TF_APPLY_ENABLED`.
+Secrets e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do backend. Não os copie manualmente.
 
 O `apply` só executa quando o disparo é manual com `apply_enabled=true`, o environment de apply aprova a execução e `TF_APPLY_ENABLED` vale `true`. Qualquer condição ausente falha o job.
 
@@ -35,23 +33,13 @@ oficina-auth-homolog
 oficina-auth-production
 ```
 
-Variáveis não sensíveis:
+Execute no repositório do backend:
 
-- `aws_region=us-west-2`;
-- `environment`;
-- `lab_role_arn` no formato `arn:aws:iam::<conta>:role/LabRole`;
-- `private_subnet_ids` e `lambda_security_group_id` obtidos do workspace Kubernetes;
-- `jwt_issuer=oficina-auth-serverless`;
-- `jwt_audience=oficina-backend`;
-- `jwt_ttl_seconds=900`;
-- `backend_base_url`, quando o LoadBalancer do backend existir.
+```powershell
+.\scripts\configure-environment.ps1 -Environment homolog
+```
 
-Variáveis sensíveis:
-
-- `db_url`, `db_user` e `db_password`;
-- `jwt_private_key` em PKCS#8 PEM;
-- `jwt_public_key` em PEM, que também deve ser configurada no backend;
-- `newrelic_license_key`, quando a instrumentação estiver habilitada.
+O script configura `environment`, rede, banco, chaves JWT e URL do backend. Região, issuer, audience e TTL usam defaults. A `LabRole` é derivada automaticamente da conta autenticada. Use `-ConfigureNewRelic` para as variáveis de observabilidade.
 
 As variáveis de observabilidade estão documentadas em [Observabilidade](observability.md).
 
@@ -88,8 +76,8 @@ terraform apply -input=false -no-color
 
 `ExpiredToken`, `RequestExpired` ou `InvalidClientTokenId` no plan indicam sessão do Learner Lab expirada. O laboratório encerra a sessão periodicamente e as credenciais são temporárias.
 
-1. reinicie o laboratório e copie as três credenciais atuais em **AWS Details**;
-2. atualize `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` no GitHub Environment e no workspace HCP;
+1. reinicie o laboratório e copie o bloco `[default]` atual em **AWS Details**;
+2. execute uma vez `configure-environment.ps1` no backend;
 3. confirme com `./scripts/validate-aws-session.sh`, que falha explicitamente quando falta credencial ou o token expirou;
 4. reexecute o workflow.
 

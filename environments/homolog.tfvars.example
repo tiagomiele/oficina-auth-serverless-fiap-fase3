@@ -1,7 +1,6 @@
 aws_region  = "us-west-2"
 environment = "homolog"
 
-lab_role_arn       = "arn:aws:iam::ACCOUNT_ID:role/LabRole"
 lambda_security_group_id = "sg-xxxxxxxx"
 private_subnet_ids        = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
 backend_base_url    = null

@@ -42,7 +42,7 @@ resource "aws_lambda_function" "log_forwarder" {
 
   function_name = "${local.name}-log-forwarder"
   description   = "Encaminha o log de acesso sanitizado do API Gateway para o New Relic"
-  role          = var.lab_role_arn
+  role          = local.lab_role_arn
   runtime       = "java21"
   architectures = ["arm64"]
   handler       = "br.com.oficina.auth.handler.ApiGatewayLogForwarderHandler::handleRequest"
