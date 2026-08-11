@@ -9,7 +9,20 @@ O deploy utilizará AWS Academy Learner Lab e deverá reutilizar a `LabRole`. A 
 | `homolog` | Homologação |
 | `main` | Produção |
 
-Credenciais temporárias serão configuradas em GitHub Environments e renovadas quando o laboratório reiniciar. Nenhuma credencial será versionada.
+Credenciais temporárias são renovadas uma única vez pelo script central do backend e propagadas aos GitHub Environments e ao Variable Set HCP. Nenhuma credencial é versionada.
+
+GitHub Environments usados pelos workflows:
+
+| Environment | Uso |
+|---|---|
+| `homolog` | Plan de homologação a partir de `homolog` |
+| `production` | Plan de produção a partir de `main` |
+| `homolog-apply` | Aprovação manual do apply de homologação |
+| `production-apply` | Aprovação manual e explícita do apply de produção |
+
+Secrets e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do backend. Não os copie manualmente.
+
+O `apply` só executa quando o disparo é manual com `apply_enabled=true`, o environment de apply aprova a execução e `TF_APPLY_ENABLED` vale `true`. Qualquer condição ausente falha o job.
 
 ## Workspaces HCP Terraform
 
@@ -20,22 +33,55 @@ oficina-auth-homolog
 oficina-auth-production
 ```
 
-Variáveis não sensíveis:
+Execute no repositório do backend:
 
-- `aws_region=us-west-2`;
-- `environment`;
-- `lab_role_arn` no formato `arn:aws:iam::<conta>:role/LabRole`;
-- `private_subnet_ids` e `lambda_security_group_id` obtidos do workspace Kubernetes;
-- `jwt_issuer=oficina-auth-serverless`;
-- `jwt_audience=oficina-backend`;
-- `jwt_ttl_seconds=900`;
-- `backend_base_url`, quando o LoadBalancer do backend existir.
+```powershell
+.\scripts\configure-environment.ps1 -Environment homolog
+```
 
-Variáveis sensíveis:
+O script configura `environment`, rede, banco, chaves JWT e URL do backend. Região, issuer, audience e TTL usam defaults. A `LabRole` é derivada automaticamente da conta autenticada. Use `-ConfigureNewRelic` para as variáveis de observabilidade.
 
-- `db_url`, `db_user` e `db_password`;
-- `jwt_private_key` em PKCS#8 PEM;
-- `jwt_public_key` em PEM, que também deve ser configurada no backend.
+As variáveis de observabilidade estão documentadas em [Observabilidade](observability.md).
+
+## Comandos exatos
+
+Validação local sem custo e sem credenciais remotas:
+
+```bash
+./mvnw -B verify spotless:check
+terraform fmt -check -recursive
+terraform init -backend=false -input=false
+terraform validate -no-color
+tflint --recursive
+```
+
+Plan com credenciais do laboratório:
+
+```bash
+export TF_CLOUD_ORGANIZATION=<organizacao>
+export TF_WORKSPACE=oficina-auth-homolog   # ou oficina-auth-production
+./scripts/validate-aws-session.sh
+./mvnw -B -DskipTests package
+terraform init -input=false
+terraform plan -input=false -no-color
+```
+
+Apply, somente após aprovação explícita:
+
+```bash
+terraform apply -input=false -no-color
+```
+
+## Troubleshooting
+
+`ExpiredToken`, `RequestExpired` ou `InvalidClientTokenId` no plan indicam sessão do Learner Lab expirada. O laboratório encerra a sessão periodicamente e as credenciais são temporárias.
+
+1. reinicie o laboratório e copie o bloco `[default]` atual em **AWS Details**;
+2. execute uma vez `configure-environment.ps1` no backend;
+3. confirme com `./scripts/validate-aws-session.sh`, que falha explicitamente quando falta credencial ou o token expirou;
+4. reexecute o workflow.
+
+O script nunca é silenciosamente ignorado: credencial ausente ou expirada interrompe o job antes de qualquer chamada Terraform.
 
 ## Ordem segura
 

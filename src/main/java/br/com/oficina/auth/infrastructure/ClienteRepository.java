@@ -1,12 +1,13 @@
 package br.com.oficina.auth.infrastructure;
 
+import br.com.oficina.auth.application.ClienteDirectory;
 import br.com.oficina.auth.config.AuthConfig;
 import br.com.oficina.auth.domain.Cpf;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Optional;
 
-public final class ClienteRepository {
+public final class ClienteRepository implements ClienteDirectory {
 
   private static final String QUERY =
       """
@@ -23,6 +24,7 @@ public final class ClienteRepository {
     this.config = config;
   }
 
+  @Override
   public Optional<Long> findActiveClientId(Cpf cpf) {
     try (var connection =
             DriverManager.getConnection(config.dbUrl(), config.dbUser(), config.dbPassword());

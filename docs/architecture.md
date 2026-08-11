@@ -16,6 +16,10 @@
 - `role`: `CLIENTE`;
 - `iss`, `aud`, `iat`, `exp` e `jti`.
 
+## Correlação e observabilidade
+
+O `X-Request-Id` recebido é reutilizado; quando ausente, o API Gateway propaga `$context.requestId` ao backend e as Lambdas devolvem o valor no header da resposta. O contrato completo está em [`openapi/oficina-auth.yaml`](openapi/oficina-auth.yaml) e os detalhes de telemetria em [Observabilidade](observability.md).
+
 ## Dependências
 
 - rede e EKS: `oficina-kubernetes-infra-fiap-fase3`;

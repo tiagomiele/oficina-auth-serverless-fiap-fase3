@@ -42,6 +42,11 @@ resource "aws_apigatewayv2_integration" "backend" {
   integration_type   = "HTTP_PROXY"
   integration_method = "ANY"
   integration_uri    = var.backend_base_url
+
+  # Garante o identificador de correlação no backend mesmo sem X-Request-Id do cliente.
+  request_parameters = {
+    "append:header.X-Request-Id" = "$context.requestId"
+  }
 }
 
 resource "aws_apigatewayv2_route" "backend" {
@@ -74,17 +79,29 @@ resource "aws_apigatewayv2_stage" "default" {
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api.arn
     format = jsonencode({
-      requestId        = "$context.requestId"
-      routeKey         = "$context.routeKey"
-      status           = "$context.status"
-      integrationError = "$context.integrationErrorMessage"
-      responseLatency  = "$context.responseLatency"
+      requestId               = "$context.requestId"
+      environment             = var.environment
+      apiId                   = "$context.apiId"
+      stage                   = "$context.stage"
+      routeKey                = "$context.routeKey"
+      httpMethod              = "$context.httpMethod"
+      path                    = "$context.path"
+      protocol                = "$context.protocol"
+      status                  = "$context.status"
+      responseLength          = "$context.responseLength"
+      responseLatency         = "$context.responseLatency"
+      integrationStatus       = "$context.integration.status"
+      integrationLatency      = "$context.integration.latency"
+      integrationErrorMessage = "$context.integration.error"
+      errorMessage            = "$context.error.message"
+      authorizerError         = "$context.authorizer.error"
     })
   }
 
   default_route_settings {
-    throttling_burst_limit = 20
-    throttling_rate_limit  = 10
+    throttling_burst_limit   = 20
+    throttling_rate_limit    = 10
+    detailed_metrics_enabled = var.api_detailed_metrics_enabled
   }
 }
 
