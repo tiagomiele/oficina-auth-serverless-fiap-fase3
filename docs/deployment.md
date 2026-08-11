@@ -22,6 +22,8 @@ GitHub Environments usados pelos workflows:
 
 Secrets e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do backend. Não os copie manualmente.
 
+Em pushes para `homolog` ou `main`, o workflow empacota e valida o código, mas ignora o plan remoto com aviso enquanto AWS ou HCP ainda não estiverem configurados. Depois da execução do script central, o mesmo workflow valida a sessão e executa o plan normalmente. Um disparo manual continua falhando explicitamente quando a configuração estiver incompleta.
+
 O `apply` só executa quando o disparo é manual com `apply_enabled=true`, o environment de apply aprova a execução e `TF_APPLY_ENABLED` vale `true`. Qualquer condição ausente falha o job.
 
 ## Workspaces HCP Terraform
@@ -81,7 +83,7 @@ terraform apply -input=false -no-color
 3. confirme com `./scripts/validate-aws-session.sh`, que falha explicitamente quando falta credencial ou o token expirou;
 4. reexecute o workflow.
 
-O script nunca é silenciosamente ignorado: credencial ausente ou expirada interrompe o job antes de qualquer chamada Terraform.
+Em execução manual, credencial ausente ou expirada interrompe o job antes de qualquer chamada Terraform. Em push automático, configuração ausente gera um aviso e ignora somente o plan remoto; credenciais configuradas, porém expiradas, continuam falhando na validação da sessão.
 
 ## Ordem segura
 
