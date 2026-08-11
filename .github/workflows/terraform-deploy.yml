@@ -60,6 +60,10 @@ jobs:
           if [ "${#missing[@]}" -gt 0 ]; then
             if [ "${{ github.event_name }}" = "push" ]; then
               printf '::notice::Plan remoto ignorado. Execute scripts/configure-environment.ps1 no backend para configurar: %s\n' "${missing[*]}"
+              {
+                echo '### Plan remoto ignorado'
+                echo 'Execute `scripts/configure-environment.ps1` no backend após os outputs de Kubernetes e RDS estarem disponíveis.'
+              } >> "$GITHUB_STEP_SUMMARY"
               echo 'ready=false' >> "$GITHUB_OUTPUT"
               exit 0
             fi
