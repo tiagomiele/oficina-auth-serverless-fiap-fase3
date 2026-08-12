@@ -62,7 +62,7 @@ jobs:
               printf '::notice::Plan remoto ignorado. Execute scripts/configure-environment.ps1 no backend para configurar: %s\n' "${missing[*]}"
               {
                 echo '### Plan remoto ignorado'
-                echo 'Execute `scripts/configure-environment.ps1` no backend após os outputs de Kubernetes e RDS estarem disponíveis.'
+                echo "Execute \`scripts/configure-environment.ps1\` no backend após os outputs de Kubernetes e RDS estarem disponíveis."
               } >> "$GITHUB_STEP_SUMMARY"
               echo 'ready=false' >> "$GITHUB_OUTPUT"
               exit 0
@@ -73,28 +73,42 @@ jobs:
           echo 'ready=true' >> "$GITHUB_OUTPUT"
 
       - name: Validate AWS Academy session
+        id: aws-session
         if: steps.configuration.outputs.ready == 'true'
+        continue-on-error: ${{ github.event_name == 'push' }}
         run: ./scripts/validate-aws-session.sh
 
+      - name: Report skipped plan for invalid AWS session
+        if: >-
+          github.event_name == 'push'
+          && steps.configuration.outputs.ready == 'true'
+          && steps.aws-session.outcome == 'failure'
+        run: |
+          echo '::notice::Plan remoto ignorado porque a sessão AWS Academy expirou ou é inválida.'
+          {
+            echo '### Plan remoto ignorado'
+            echo "Renove o Learner Lab e execute \`scripts/configure-environment.ps1\` no backend."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup Terraform
-        if: steps.configuration.outputs.ready == 'true'
+        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outcome == 'success'
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
       - name: Validate HCP configuration
-        if: steps.configuration.outputs.ready == 'true'
+        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outcome == 'success'
         run: |
           set -euo pipefail
           test -n "$TF_CLOUD_ORGANIZATION" || { echo "TF_CLOUD_ORGANIZATION não configurada no ambiente."; exit 1; }
           test -n "$TF_WORKSPACE" || { echo "Workspace do ambiente não configurado."; exit 1; }
 
       - name: Terraform init
-        if: steps.configuration.outputs.ready == 'true'
+        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outcome == 'success'
         run: terraform init -input=false
 
       - name: Terraform plan
-        if: steps.configuration.outputs.ready == 'true'
+        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outcome == 'success'
         run: terraform plan -input=false -no-color
 
   apply:
