@@ -75,14 +75,25 @@ jobs:
       - name: Validate AWS Academy session
         id: aws-session
         if: steps.configuration.outputs.ready == 'true'
-        continue-on-error: ${{ github.event_name == 'push' }}
-        run: ./scripts/validate-aws-session.sh
+        run: |
+          set -euo pipefail
+          if validation_output="$(./scripts/validate-aws-session.sh 2>&1)"; then
+            printf '%s\n' "$validation_output"
+            echo 'valid=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" = 'push' ]; then
+            echo 'valid=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s\n' "$validation_output" >&2
+          exit 1
 
       - name: Report skipped plan for invalid AWS session
         if: >-
           github.event_name == 'push'
           && steps.configuration.outputs.ready == 'true'
-          && steps.aws-session.outcome == 'failure'
+          && steps.aws-session.outputs.valid == 'false'
         run: |
           echo '::notice::Plan remoto ignorado porque a sessão AWS Academy expirou ou é inválida.'
           {
@@ -91,24 +102,24 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Terraform
-        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outcome == 'success'
+        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outputs.valid == 'true'
         uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
       - name: Validate HCP configuration
-        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outcome == 'success'
+        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outputs.valid == 'true'
         run: |
           set -euo pipefail
           test -n "$TF_CLOUD_ORGANIZATION" || { echo "TF_CLOUD_ORGANIZATION não configurada no ambiente."; exit 1; }
           test -n "$TF_WORKSPACE" || { echo "Workspace do ambiente não configurado."; exit 1; }
 
       - name: Terraform init
-        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outcome == 'success'
+        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outputs.valid == 'true'
         run: terraform init -input=false
 
       - name: Terraform plan
-        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outcome == 'success'
+        if: steps.configuration.outputs.ready == 'true' && steps.aws-session.outputs.valid == 'true'
         run: terraform plan -input=false -no-color
 
   apply:
