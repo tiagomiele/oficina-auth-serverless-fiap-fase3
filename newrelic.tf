@@ -27,7 +27,6 @@ locals {
 
   login_handler      = "br.com.oficina.auth.handler.CpfAuthenticationHandler::handleRequest"
   authorizer_handler = "br.com.oficina.auth.handler.JwtAuthorizerHandler::handleRequest"
-  wrapper_handler    = "com.newrelic.java.HandlerWrapper::handleRequest"
 }
 
 resource "aws_cloudwatch_log_group" "log_forwarder" {

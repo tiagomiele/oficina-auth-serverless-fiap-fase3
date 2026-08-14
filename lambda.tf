@@ -19,7 +19,7 @@ resource "aws_lambda_function" "login" {
   role          = local.lab_role_arn
   runtime       = "java21"
   architectures = ["arm64"]
-  handler       = var.newrelic_instrumentation_enabled ? local.wrapper_handler : local.login_handler
+  handler       = local.login_handler
   layers        = local.newrelic_layers
 
   filename         = var.lambda_package_path
@@ -35,16 +35,15 @@ resource "aws_lambda_function" "login" {
   environment {
     variables = merge(
       {
-        DB_URL                   = var.db_url
-        DB_USER                  = var.db_user
-        DB_PASSWORD              = var.db_password
-        JWT_PRIVATE_KEY          = var.jwt_private_key
-        JWT_PUBLIC_KEY           = var.jwt_public_key
-        JWT_ISSUER               = var.jwt_issuer
-        JWT_AUDIENCE             = var.jwt_audience
-        JWT_TTL_SECONDS          = tostring(var.jwt_ttl_seconds)
-        ENVIRONMENT              = var.environment
-        NEW_RELIC_LAMBDA_HANDLER = local.login_handler
+        DB_URL          = var.db_url
+        DB_USER         = var.db_user
+        DB_PASSWORD     = var.db_password
+        JWT_PRIVATE_KEY = var.jwt_private_key
+        JWT_PUBLIC_KEY  = var.jwt_public_key
+        JWT_ISSUER      = var.jwt_issuer
+        JWT_AUDIENCE    = var.jwt_audience
+        JWT_TTL_SECONDS = tostring(var.jwt_ttl_seconds)
+        ENVIRONMENT     = var.environment
       },
       local.newrelic_environment
     )
@@ -72,7 +71,7 @@ resource "aws_lambda_function" "authorizer" {
   role          = local.lab_role_arn
   runtime       = "java21"
   architectures = ["arm64"]
-  handler       = var.newrelic_instrumentation_enabled ? local.wrapper_handler : local.authorizer_handler
+  handler       = local.authorizer_handler
   layers        = local.newrelic_layers
 
   filename         = var.lambda_package_path
@@ -83,11 +82,10 @@ resource "aws_lambda_function" "authorizer" {
   environment {
     variables = merge(
       {
-        JWT_PUBLIC_KEY           = var.jwt_public_key
-        JWT_ISSUER               = var.jwt_issuer
-        JWT_AUDIENCE             = var.jwt_audience
-        ENVIRONMENT              = var.environment
-        NEW_RELIC_LAMBDA_HANDLER = local.authorizer_handler
+        JWT_PUBLIC_KEY = var.jwt_public_key
+        JWT_ISSUER     = var.jwt_issuer
+        JWT_AUDIENCE   = var.jwt_audience
+        ENVIRONMENT    = var.environment
       },
       local.newrelic_environment
     )
