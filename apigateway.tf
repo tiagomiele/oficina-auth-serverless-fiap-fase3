@@ -28,7 +28,7 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
   api_id                            = aws_apigatewayv2_api.main.id
   name                              = "${local.name}-jwt-authorizer"
   authorizer_type                   = "REQUEST"
-  authorizer_uri                    = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.authorizer.invoke_arn}/invocations"
+  authorizer_uri                    = aws_lambda_function.authorizer.invoke_arn
   identity_sources                  = ["$request.header.Authorization"]
   authorizer_payload_format_version = "2.0"
   enable_simple_responses           = true
