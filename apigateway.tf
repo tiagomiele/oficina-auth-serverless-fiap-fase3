@@ -1,3 +1,21 @@
+locals {
+  backend_route_keys = var.backend_base_url == null ? [] : [
+    "GET /consulta/ordens-servico/{numeroOs}/status",
+    "GET /ordens-servico/{numeroOs}/historico",
+    "POST /ordens-servico/{numeroOs}/aprovar",
+    "POST /ordens-servico/{numeroOs}/rejeitar-refazer",
+    "POST /ordens-servico/{numeroOs}/rejeitar-cancelar",
+    "POST /ordens-servico/{numeroOs}/confirmar-pagamento"
+  ]
+
+  backend_routes = {
+    for route_key in local.backend_route_keys : route_key => {
+      method = split(" ", route_key)[0]
+      path   = split(" ", route_key)[1]
+    }
+  }
+}
+
 resource "aws_apigatewayv2_api" "main" {
   name          = "${local.name}-http-api"
   protocol_type = "HTTP"
@@ -35,13 +53,15 @@ resource "aws_apigatewayv2_authorizer" "jwt" {
   authorizer_result_ttl_in_seconds  = 300
 }
 
+# O HTTP API não repassa o caminho da rota para integrações HTTP_PROXY: a URI da
+# integração precisa conter o caminho do backend, por isso há uma integração por rota.
 resource "aws_apigatewayv2_integration" "backend" {
-  count = var.backend_base_url == null ? 0 : 1
+  for_each = local.backend_routes
 
   api_id             = aws_apigatewayv2_api.main.id
   integration_type   = "HTTP_PROXY"
-  integration_method = "ANY"
-  integration_uri    = var.backend_base_url
+  integration_method = each.value.method
+  integration_uri    = "${var.backend_base_url}${each.value.path}"
 
   # Garante o identificador de correlação no backend mesmo sem X-Request-Id do cliente.
   request_parameters = {
@@ -50,20 +70,13 @@ resource "aws_apigatewayv2_integration" "backend" {
 }
 
 resource "aws_apigatewayv2_route" "backend" {
-  for_each = var.backend_base_url == null ? toset([]) : toset([
-    "GET /consulta/ordens-servico/{numeroOs}/status",
-    "GET /ordens-servico/{numeroOs}/historico",
-    "POST /ordens-servico/{numeroOs}/aprovar",
-    "POST /ordens-servico/{numeroOs}/rejeitar-refazer",
-    "POST /ordens-servico/{numeroOs}/rejeitar-cancelar",
-    "POST /ordens-servico/{numeroOs}/confirmar-pagamento"
-  ])
+  for_each = local.backend_routes
 
   api_id             = aws_apigatewayv2_api.main.id
-  route_key          = each.value
+  route_key          = each.key
   authorization_type = "CUSTOM"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
+  target             = "integrations/${aws_apigatewayv2_integration.backend[each.key].id}"
 }
 
 resource "aws_cloudwatch_log_group" "api" {
