@@ -22,14 +22,13 @@ Regras aplicadas em `br.com.oficina.auth.observability`:
 
 ## Instrumentação New Relic
 
-A abordagem suportada atualmente para Java em Lambda é a camada do agente APM (`java-agent-approaches-lambda`), que exige Java 17 ou superior e ativa o modo serverless automaticamente. Usamos a variante slim para ARM64 e o wrapper de handler:
+A abordagem suportada atualmente para Java em Lambda é a camada do agente APM (`java-agent-approaches-lambda`), que exige Java 17 ou superior e ativa o modo serverless automaticamente. Usamos a variante slim para ARM64 e o script de inicialização da camada:
 
 - camada padrão: `arn:aws:lambda:<região>:451483290750:layer:NewRelicAgentJavaARM64-slim:<versão>`;
-- handler efetivo: `com.newrelic.java.HandlerWrapper::handleRequest`;
-- `NEW_RELIC_LAMBDA_HANDLER` mantém o handler real da função;
-- `AWS_LAMBDA_EXEC_WRAPPER=/opt/newrelic-java-handler`.
+- `AWS_LAMBDA_EXEC_WRAPPER=/opt/newrelic-java-handler` anexa o agente via `JAVA_TOOL_OPTIONS`;
+- o handler da Lambda continua sendo o da aplicação, independentemente da instrumentação.
 
-Quando `newrelic_instrumentation_enabled = false`, nenhuma camada é anexada, o handler original é usado e `Telemetry.fromEnvironment()` devolve a implementação no-op, sem `traceId`/`spanId` no log e sem dependência do agente em runtime.
+Quando `newrelic_instrumentation_enabled = false`, nenhuma camada é anexada e `Telemetry.fromEnvironment()` devolve a implementação no-op, sem `traceId`/`spanId` no log e sem dependência do agente em runtime.
 
 ### Variáveis Terraform
 
