@@ -66,7 +66,7 @@ O script descobre automaticamente a versão pública mais recente da camada Java
 
 O stage `$default` grava log de acesso JSON no log group `/aws/apigateway/<nome>` com `requestId`, `environment`, `apiId`, `stage`, `routeKey`, `httpMethod`, `path`, `protocol`, `status`, `responseLength`, `responseLatency`, `integrationStatus`, `integrationLatency`, `integrationErrorMessage`, `errorMessage` e `authorizerError`. Nenhum header, corpo ou identidade do chamador é registrado.
 
-`default_route_settings.detailed_metrics_enabled` controla as métricas por rota. A integração HTTP_PROXY das rotas protegidas aplica `append:header.X-Request-Id = $context.requestId`, garantindo correlação no backend mesmo quando o cliente não envia o header. Rotas explícitas, Authorizer e CORS permanecem inalterados.
+`default_route_settings.detailed_metrics_enabled` controla as métricas por rota. Cada rota protegida tem sua própria integração HTTP_PROXY, cuja URI repete o caminho da rota (`backend_base_url` + caminho, com as variáveis de caminho preservadas), porque o HTTP API não repassa o caminho automaticamente. Toda integração aplica `append:header.X-Request-Id = $context.requestId`, garantindo correlação no backend mesmo quando o cliente não envia o header. Rotas explícitas, Authorizer e CORS permanecem inalterados.
 
 ## Log de acesso no New Relic
 
