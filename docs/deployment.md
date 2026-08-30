@@ -15,20 +15,18 @@ GitHub Environments usados pelos workflows:
 
 | Environment | Uso |
 |---|---|
-| `homolog` | Plan de homologação a partir de `homolog` |
-| `production` | Plan de produção a partir de `main` |
-| `homolog-apply` | Aprovação manual do apply de homologação |
-| `production-apply` | Aprovação manual e explícita do apply de produção |
+| `homolog` | Plan e apply de homologação a partir de `homolog` |
+| `production` | Plan e apply de produção a partir de `main` |
 
 Secrets e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do backend. Não os copie manualmente.
 
-Em pushes para `homolog` ou `main`, o workflow empacota e valida o código, mas ignora o plan remoto com aviso enquanto AWS ou HCP ainda não estiverem configurados. Depois da execução do script central, o mesmo workflow valida a sessão e executa o plan normalmente. Um disparo manual continua falhando explicitamente quando a configuração estiver incompleta.
+Merges em `homolog` ou `main` empacotam o código, validam a sessão, executam plan e iniciam o apply. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso. O apply aguarda a aprovação do GitHub Environment e exige `TF_APPLY_ENABLED=true`.
 
-O `apply` só executa quando o disparo é manual com `apply_enabled=true`, o environment de apply aprova a execução e `TF_APPLY_ENABLED` vale `true`. Qualquer condição ausente falha o job.
+`workflow_dispatch` permanece para reexecução: `apply_enabled=false` executa somente o plan e `true` também solicita o gate de apply.
 
 ## Workspaces HCP Terraform
 
-Crie workspaces de execução remota e apply manual:
+Crie workspaces de execução remota com Auto apply desativado:
 
 ```text
 oficina-auth-homolog
@@ -41,7 +39,7 @@ Execute no repositório do backend:
 .\scripts\configure-environment.ps1 -Environment homolog
 ```
 
-O script configura `environment`, rede, banco, chaves JWT e URL do backend. Região, issuer, audience e TTL usam defaults. A `LabRole` é derivada automaticamente da conta autenticada. Use `-ConfigureNewRelic` para as variáveis de observabilidade.
+O script configura `environment`, rede, banco, chaves JWT, URL do backend, chave técnica de notificação e remetente SES. Região, issuer, audience e TTL usam defaults. A `LabRole` é derivada automaticamente da conta autenticada. Use `-ConfigureNewRelic` para as variáveis de observabilidade.
 
 As variáveis de observabilidade estão documentadas em [Observabilidade](observability.md).
 
@@ -83,7 +81,7 @@ terraform apply -input=false -no-color
 3. confirme com `./scripts/validate-aws-session.sh`, que falha explicitamente quando falta credencial ou o token expirou;
 4. reexecute o workflow.
 
-Em execução manual, credencial ausente ou expirada interrompe o job antes de qualquer chamada Terraform. Em push automático, configuração ausente gera um aviso e ignora somente o plan remoto; credenciais configuradas, porém expiradas, continuam falhando na validação da sessão.
+Em execução manual ou automática, credencial ausente ou expirada interrompe o job antes de qualquer chamada Terraform.
 
 ## Ordem segura
 
@@ -91,8 +89,10 @@ Em execução manual, credencial ausente ou expirada interrompe o job antes de q
 2. aplicar RDS e executar a migration do backend;
 3. gerar `target/oficina-auth.jar`;
 4. executar o plan do workspace de autenticação;
-5. revisar recursos, rotas e variáveis;
-6. executar apply somente com autorização explícita;
-7. configurar `backend_base_url` e executar novo plan para publicar as rotas protegidas.
+5. revisar recursos, rotas, tópico SNS, Lambda de entrega, DLQ e variáveis;
+6. confirmar a identidade do remetente enviada pelo SES, sem expor a chave técnica;
+7. executar apply somente com autorização explícita;
+8. configurar `backend_base_url` e executar novo plan para publicar as rotas protegidas;
+9. sincronizar o output `notification_endpoint` com o GitHub Environment do backend.
 
 A Lambda reutiliza o security group do EKS já permitido no RDS. Nenhuma role IAM ou EKS Access Entry é criada.

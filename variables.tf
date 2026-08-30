@@ -207,3 +207,30 @@ variable "backend_base_url" {
     error_message = "backend_base_url deve ser uma URL HTTP(S) sem barra final."
   }
 }
+
+variable "notification_api_key" {
+  description = "Chave compartilhada pelo backend e pela Lambda de ingresso de notificações."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[!-~]{32,128}$", var.notification_api_key))
+    error_message = "notification_api_key deve possuir entre 32 e 128 caracteres ASCII sem espaço."
+  }
+}
+
+variable "notification_source_email" {
+  description = "Endereço verificado no Amazon SES usado como remetente."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.notification_source_email))
+    error_message = "notification_source_email deve ser um endereço de e-mail válido."
+  }
+}
+
+variable "notification_create_ses_identity" {
+  description = "Solicita a verificação do remetente no SES. A confirmação por e-mail continua obrigatória."
+  type        = bool
+  default     = false
+}

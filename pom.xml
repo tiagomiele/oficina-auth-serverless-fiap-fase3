@@ -14,6 +14,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <jjwt.version>0.12.6</jjwt.version>
     <newrelic.api.version>8.21.0</newrelic.api.version>
+    <aws.sdk.version>2.29.29</aws.sdk.version>
     <jackson.version>2.17.2</jackson.version>
     <junit.version>5.11.0</junit.version>
   </properties>
@@ -33,6 +34,16 @@
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sns</artifactId>
+      <version>${aws.sdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sesv2</artifactId>
+      <version>${aws.sdk.version}</version>
     </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>

@@ -20,6 +20,16 @@
 
 O `X-Request-Id` recebido é reutilizado; quando ausente, o API Gateway propaga `$context.requestId` ao backend e as Lambdas devolvem o valor no header da resposta. O contrato completo está em [`openapi/oficina-auth.yaml`](openapi/oficina-auth.yaml) e os detalhes de telemetria em [Observabilidade](observability.md).
 
+## Fluxo de notificação
+
+1. O backend chama `POST /internal/notifications` com `X-Notification-Key` e `X-Request-Id`.
+2. A Lambda compara a chave em tempo constante, valida os limites do payload e publica no SNS.
+3. O SNS invoca a Lambda de entrega, que envia a mensagem pelo Amazon SES.
+4. Falhas transitórias são repetidas pelo SNS; falhas definitivas seguem para a fila SQS DLQ.
+5. Destinatário, assunto, corpo e credencial não aparecem nos logs técnicos.
+
+O remetente precisa estar verificado no SES. Contas em sandbox também exigem destinatários verificados até a liberação para produção.
+
 ## Dependências
 
 - rede e EKS: `oficina-kubernetes-infra-fiap-fase3`;

@@ -3,8 +3,8 @@ info:
   title: Oficina Auth Serverless
   version: 1.0.0
   description: |
-    Contrato do serviço serverless de autenticação por CPF e das rotas de cliente
-    protegidas pelo Lambda Authorizer no API Gateway HTTP API.
+    Contrato do serviço serverless de autenticação por CPF, das rotas de cliente
+    protegidas pelo Lambda Authorizer e do ingresso técnico de notificações.
 servers:
   - url: https://{apiId}.execute-api.{region}.amazonaws.com
     description: HTTP API do ambiente
@@ -16,6 +16,7 @@ servers:
 tags:
   - name: autenticacao
   - name: cliente
+  - name: notificacao
 paths:
   /auth/cpf:
     post:
@@ -85,6 +86,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Erro'
+  /internal/notifications:
+    post:
+      tags: [notificacao]
+      operationId: publicarNotificacao
+      summary: Publica uma notificação para processamento assíncrono
+      description: |
+        Rota técnica consumida exclusivamente pelo backend. A Lambda valida a chave
+        compartilhada, limita o payload e publica a mensagem no SNS. O destinatário,
+        o assunto, o corpo e a credencial não são registrados nos logs técnicos.
+      security:
+        - notificationKey: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificacaoRequest'
+      responses:
+        '202':
+          description: Notificação aceita para processamento
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+        '400':
+          description: Payload inválido
+        '401':
+          description: Credencial técnica inválida
+        '503':
+          description: Publicação temporariamente indisponível
   /consulta/ordens-servico/{numeroOs}/status:
     get:
       tags: [cliente]
@@ -189,6 +221,11 @@ paths:
           $ref: '#/components/responses/AuthorizerDeny'
 components:
   securitySchemes:
+    notificationKey:
+      type: apiKey
+      in: header
+      name: X-Notification-Key
+      description: Chave compartilhada armazenada como secret nos ambientes HCP e GitHub.
     bearerAuth:
       type: http
       scheme: bearer
@@ -235,6 +272,23 @@ components:
           schema:
             $ref: '#/components/schemas/Erro'
   schemas:
+    NotificacaoRequest:
+      type: object
+      required: [destinatario, assunto, corpo]
+      additionalProperties: false
+      properties:
+        destinatario:
+          type: string
+          format: email
+          maxLength: 320
+        assunto:
+          type: string
+          minLength: 1
+          maxLength: 200
+        corpo:
+          type: string
+          minLength: 1
+          maxLength: 5000
     AutenticacaoRequest:
       type: object
       required: [cpf]
