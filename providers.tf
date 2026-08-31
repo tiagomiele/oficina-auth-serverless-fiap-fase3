@@ -14,8 +14,3 @@ provider "aws" {
     }
   }
 }
-
-provider "aws" {
-  alias  = "ses_identity"
-  region = var.aws_region
-}
