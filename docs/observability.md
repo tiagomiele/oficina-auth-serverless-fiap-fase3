@@ -15,7 +15,7 @@ Regras aplicadas em `br.com.oficina.auth.observability`:
 - `StructuredLogger` só serializa a lista fixa de campos acima;
 - `LogSanitizer` remove caracteres de controle, trunca em 64 caracteres e substitui valores com formato de documento ou sequências longas de dígitos por `REDACTED`;
 - CPF, corpo da requisição, header `Authorization`, JWT, chaves e credenciais de banco nunca são registrados;
-- `outcome` assume `SUCCESS`, `DENIED`, `INVALID_REQUEST`, `ERROR` (login) e `ALLOW`, `DENY`, `ERROR` (authorizer);
+- `outcome` assume `SUCCESS`, `DENIED`, `INVALID_REQUEST`, `ERROR` (login), `ALLOW`, `DENY`, `ERROR` (authorizer), `ACCEPTED` (ingresso) e `DELIVERED` (entrega);
 - `errorCode` usa códigos técnicos como `MISSING_CPF`, `INVALID_CPF`, `CLIENT_NOT_ELIGIBLE`, `MALFORMED_JSON`, `TOKEN_MISSING`, `TOKEN_EXPIRED`, `TOKEN_SIGNATURE_INVALID`, `TOKEN_ISSUER_INVALID`, `TOKEN_AUDIENCE_INVALID`, `TOKEN_ROLE_INVALID`, `INTERNAL_ERROR`.
 
 `requestId` é resolvido nesta ordem: header `X-Request-Id` (case-insensitive), `requestContext.requestId` do API Gateway e, por último, o `awsRequestId` da Lambda.
@@ -88,7 +88,7 @@ SELECT count(*) FROM Log WHERE logtype = 'api-gateway-access' FACET routeKey, st
 
 Estes passos exigem sessão do Learner Lab e conta New Relic, portanto ficam fora do CI:
 
-1. `terraform plan` com `newrelic_instrumentation_enabled = true` e conferência da camada nas duas funções;
+1. `terraform plan` com `newrelic_instrumentation_enabled = true` e conferência da camada nas funções instrumentadas;
 2. `apply` autorizado e chamada de `POST /auth/cpf`;
 3. verificação da entidade das Lambdas em APM no New Relic;
 4. `newrelic_log_forwarding_enabled = true` e execução da consulta NRQL acima.

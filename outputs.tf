@@ -30,3 +30,18 @@ output "newrelic_instrumentation" {
     forwarder_name = var.newrelic_log_forwarding_enabled ? aws_lambda_function.log_forwarder[0].function_name : null
   }
 }
+
+output "notification_endpoint" {
+  description = "Endpoint técnico consumido pelo backend para publicar notificações."
+  value       = "${aws_apigatewayv2_api.main.api_endpoint}/internal/notifications"
+}
+
+output "notification_topic_arn" {
+  description = "Tópico SNS usado para entrega assíncrona."
+  value       = aws_sns_topic.notifications.arn
+}
+
+output "notification_dlq_url" {
+  description = "Fila que recebe notificações não entregues após as tentativas do SNS."
+  value       = aws_sqs_queue.notification_dlq.url
+}

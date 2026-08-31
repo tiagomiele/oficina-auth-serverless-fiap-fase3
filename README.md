@@ -1,6 +1,6 @@
 # Oficina Auth Serverless — Fase 3
 
-Serviço serverless de autenticação por CPF da oficina mecânica. Implementa AWS Lambda Java 21, JWT RSA, Lambda Authorizer, API Gateway HTTP API e infraestrutura Terraform compatível com AWS Academy.
+Serviço serverless de autenticação por CPF e entrega assíncrona de notificações da oficina mecânica. Implementa AWS Lambda Java 21, JWT RSA, Lambda Authorizer, API Gateway HTTP API, SNS, SES e infraestrutura Terraform compatível com AWS Academy.
 
 ## Responsabilidades
 
@@ -10,6 +10,8 @@ Serviço serverless de autenticação por CPF da oficina mecânica. Implementa A
 - autorizar rotas protegidas no API Gateway;
 - produzir logs estruturados em JSON sem CPF ou token;
 - expor telemetria opcional no New Relic e log de acesso técnico do API Gateway;
+- aceitar notificações técnicas do backend e entregá-las de forma assíncrona por SNS e SES;
+- redirecionar falhas definitivas de entrega para uma DLQ;
 - provisionar os componentes serverless com a `LabRole` existente.
 
 Não contém regras de Ordem de Serviço nem infraestrutura do EKS ou do RDS.
@@ -24,11 +26,16 @@ flowchart LR
     Login --> NR[New Relic]
     Gateway --> Authorizer[Lambda Authorizer]
     Authorizer --> API[Backend no EKS]
+    API --> NotificationApi[Lambda Ingresso]
+    NotificationApi --> SNS[Amazon SNS]
+    SNS --> Delivery[Lambda Entrega]
+    Delivery --> SES[Amazon SES]
+    SNS --> DLQ[SQS DLQ]
 ```
 
 ## Tecnologias
 
-- AWS Lambda e API Gateway;
+- AWS Lambda, API Gateway, SNS, SQS e SES;
 - Java 21;
 - JWT com assinatura assimétrica;
 - Terraform;
@@ -41,9 +48,9 @@ flowchart LR
 ./mvnw -B verify spotless:check
 ```
 
-Os testes cobrem login com sucesso, CPF inválido, ausente, inexistente e inativo, JSON inválido, claims do JWT, token ausente, inválido, expirado, com emissor ou audiência incorretos, allow e deny do Authorizer, logs estruturados e o encaminhamento de log de acesso.
+Os testes cobrem login com sucesso, CPF inválido, ausente, inexistente e inativo, JSON inválido, claims do JWT, token ausente, inválido, expirado, com emissor ou audiência incorretos, allow e deny do Authorizer, logs estruturados, encaminhamento de log de acesso e o fluxo assíncrono de notificações sem PII nos logs.
 
-O artefato usado pelas duas Lambdas é gerado em:
+O artefato compartilhado pelas Lambdas é gerado em:
 
 ```text
 target/oficina-auth.jar
@@ -51,7 +58,7 @@ target/oficina-auth.jar
 
 ## Terraform
 
-O repositório cria a rota pública `POST /auth/cpf` e seis rotas do cliente protegidas pelo Lambda Authorizer. Configure um workspace HCP por ambiente, execute o build antes do plan e nunca versione chaves ou credenciais.
+O repositório cria a rota pública `POST /auth/cpf`, a rota técnica protegida `POST /internal/notifications` e seis rotas do cliente protegidas pelo Lambda Authorizer. Também cria o tópico SNS, a Lambda de entrega SES e a DLQ. Configure um workspace HCP por ambiente, execute o build antes do plan e nunca versione chaves ou credenciais.
 
 ```bash
 ./mvnw -B -DskipTests package
@@ -59,7 +66,7 @@ terraform init -input=false
 terraform plan -input=false -no-color
 ```
 
-O `apply` permanece manual e exige `TF_APPLY_ENABLED=true` no GitHub Environment mais aprovação dos revisores. Consulte [AWS Academy e deploy](docs/deployment.md) para as variáveis, os comandos exatos e a ordem segura de implantação.
+Merges em `homolog` e `main` iniciam plan e apply automaticamente; o apply exige `TF_APPLY_ENABLED=true` e aprovação do GitHub Environment. `workflow_dispatch` permanece para reexecução controlada. Configuração ausente ou sessão AWS inválida falha explicitamente. Consulte [AWS Academy e deploy](docs/deployment.md).
 
 ## Observabilidade
 
@@ -67,7 +74,7 @@ A instrumentação New Relic e o encaminhamento do log de acesso são opcionais 
 
 ## Contrato
 
-O contrato de `POST /auth/cpf` e das rotas protegidas está em [`docs/openapi/oficina-auth.yaml`](docs/openapi/oficina-auth.yaml) e pode ser importado diretamente na collection central do Postman.
+O contrato de autenticação, rotas protegidas e ingresso técnico de notificações está em [`docs/openapi/oficina-auth.yaml`](docs/openapi/oficina-auth.yaml) e pode ser importado diretamente na collection central do Postman.
 
 ## Documentação
 
