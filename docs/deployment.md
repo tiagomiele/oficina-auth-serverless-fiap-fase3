@@ -41,6 +41,8 @@ Execute no repositório do backend:
 
 O script configura `environment`, rede, banco, chaves JWT, URL do backend, chave técnica de notificação e remetente SES. Região, issuer, audience e TTL usam defaults. A `LabRole` é derivada automaticamente da conta autenticada. Use `-ConfigureNewRelic` para as variáveis de observabilidade.
 
+No AWS Academy, a identidade do remetente usa a API clássica `VerifyEmailIdentity`, pois a `LabRole` bloqueia `CreateEmailIdentity` e `TagResource` da API SESv2. O apply solicita a verificação sem tags; confirme o e-mail enviado pela AWS antes do teste de entrega.
+
 As variáveis de observabilidade estão documentadas em [Observabilidade](observability.md).
 
 ## Comandos exatos
