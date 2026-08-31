@@ -145,7 +145,8 @@ resource "aws_sns_topic_subscription" "notification_delivery" {
 }
 
 resource "aws_sesv2_email_identity" "notification_source" {
-  count = var.notification_create_ses_identity ? 1 : 0
+  provider = aws.ses_identity
+  count    = var.notification_create_ses_identity ? 1 : 0
 
   email_identity = var.notification_source_email
 }
