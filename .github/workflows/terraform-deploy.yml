@@ -1,0 +1,228 @@
+name: Terraform deploy
+
+on:
+  push:
+    branches: [homolog]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente alvo
+        required: true
+        default: homolog
+        type: choice
+        options:
+          - homolog
+          - production
+      action:
+        description: Operação a executar
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      confirm:
+        description: Para apply/destroy, digite APPLY-<ambiente> ou DESTROY-<ambiente>
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: deploy-${{ github.event_name == 'push' && github.ref_name || inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan (${{ github.event_name == 'push' && 'homolog' || inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'push' && 'homolog' || inputs.environment }}
+    permissions:
+      contents: read
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ (github.event_name == 'push' && 'homolog' || inputs.environment) == 'production' && vars.TF_WORKSPACE_PRODUCTION || vars.TF_WORKSPACE_HOMOLOG }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar branch, operação e confirmação
+        env:
+          TARGET_ENVIRONMENT: ${{ github.event_name == 'push' && 'homolog' || inputs.environment }}
+          TARGET_ACTION: ${{ github.event_name == 'push' && 'apply' || inputs.action }}
+          PROVIDED_CONFIRMATION: ${{ inputs.confirm }}
+        run: |
+          if [ "$TARGET_ENVIRONMENT" = "production" ] && [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "::error::production só pode ser executado a partir de main."
+            exit 1
+          fi
+          if [ "$TARGET_ENVIRONMENT" = "homolog" ] && [ "$GITHUB_REF_NAME" != "homolog" ]; then
+            echo "::error::homolog só pode ser executado a partir de homolog."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$TARGET_ACTION" != "plan" ]; then
+            action_upper="$(printf '%s' "$TARGET_ACTION" | tr '[:lower:]' '[:upper:]')"
+            expected="${action_upper}-${TARGET_ENVIRONMENT}"
+            if [ "$PROVIDED_CONFIRMATION" != "$expected" ]; then
+              echo "::error::Confirmação inválida. Era esperado exatamente '$expected'."
+              exit 1
+            fi
+          fi
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Package Lambda artifact
+        run: |
+          chmod +x mvnw
+          ./mvnw -B verify spotless:check
+
+      - name: Validate deployment configuration
+        env:
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN TF_CLOUD_ORGANIZATION TF_WORKSPACE TF_API_TOKEN; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Configuração incompleta do GitHub Environment: %s\n' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Validate AWS Academy session
+        run: ./scripts/validate-aws-session.sh
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Validate HCP configuration
+        run: |
+          set -euo pipefail
+          test -n "$TF_CLOUD_ORGANIZATION" || { echo "TF_CLOUD_ORGANIZATION não configurada no ambiente."; exit 1; }
+          test -n "$TF_WORKSPACE" || { echo "Workspace do ambiente não configurado."; exit 1; }
+
+      - name: Terraform init
+        run: terraform init -input=false -lockfile=readonly
+
+      - name: Terraform plan
+        run: |
+          if [ "${{ inputs.action }}" = "destroy" ]; then
+            terraform plan -destroy -input=false -no-color
+          else
+            terraform plan -input=false -no-color
+          fi
+
+  apply:
+    name: Apply (${{ github.event_name == 'push' && 'homolog' || inputs.environment }})
+    needs: plan
+    if: github.event_name == 'push' || inputs.action == 'apply'
+    runs-on: ubuntu-latest
+    environment: ${{ format('{0}-apply', github.event_name == 'push' && 'homolog' || inputs.environment) }}
+    permissions:
+      contents: read
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ (github.event_name == 'push' && 'homolog' || inputs.environment) == 'production' && vars.TF_WORKSPACE_PRODUCTION || vars.TF_WORKSPACE_HOMOLOG }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Package Lambda artifact
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -DskipTests package spotless:check
+
+      - name: Validate AWS Academy session
+        run: ./scripts/validate-aws-session.sh
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Confirm apply gate
+        run: |
+          set -euo pipefail
+          if [ "${{ vars.TF_APPLY_ENABLED }}" != "true" ]; then
+            echo "TF_APPLY_ENABLED não está habilitada no ambiente. Apply bloqueado." >&2
+            exit 1
+          fi
+
+      - name: Terraform init
+        run: terraform init -input=false -lockfile=readonly
+
+      - name: Terraform apply
+        run: terraform apply -input=false -no-color -auto-approve
+
+  destroy:
+    name: Destroy (${{ inputs.environment }})
+    needs: plan
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    environment: ${{ format('{0}-apply', inputs.environment) }}
+    permissions:
+      contents: read
+    env:
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE: ${{ inputs.environment == 'production' && vars.TF_WORKSPACE_PRODUCTION || vars.TF_WORKSPACE_HOMOLOG }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Package Lambda artifact
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -DskipTests package spotless:check
+
+      - name: Validate AWS Academy session
+        run: ./scripts/validate-aws-session.sh
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Confirm destroy gate
+        run: |
+          set -euo pipefail
+          if [ "${{ vars.TF_APPLY_ENABLED }}" != "true" ]; then
+            echo "TF_APPLY_ENABLED não está habilitada no ambiente. Destroy bloqueado." >&2
+            exit 1
+          fi
+
+      - name: Terraform init
+        run: terraform init -input=false -lockfile=readonly
+
+      - name: Terraform destroy
+        run: terraform destroy -input=false -no-color -auto-approve
