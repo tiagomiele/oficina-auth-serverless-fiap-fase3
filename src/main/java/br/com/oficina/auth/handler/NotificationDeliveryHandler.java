@@ -10,6 +10,8 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.SNSEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Locale;
+import java.util.function.Supplier;
 import software.amazon.awssdk.services.sesv2.SesV2Client;
 
 public final class NotificationDeliveryHandler implements RequestHandler<SNSEvent, String> {
@@ -21,10 +23,7 @@ public final class NotificationDeliveryHandler implements RequestHandler<SNSEven
   private final Telemetry telemetry;
 
   public NotificationDeliveryHandler() {
-    this(
-        new SesNotificationSender(
-            SesV2Client.create(), requiredEnvironment("NOTIFICATION_SOURCE_EMAIL")),
-        Telemetry.fromEnvironment());
+    this(senderFromEnvironment(), Telemetry.fromEnvironment());
   }
 
   NotificationDeliveryHandler(NotificationSender sender, Telemetry telemetry) {
@@ -39,7 +38,7 @@ public final class NotificationDeliveryHandler implements RequestHandler<SNSEven
     StructuredLogger logger =
         new StructuredLogger(FUNCTION, telemetry, line -> context.getLogger().log(line + "\n"));
     try {
-      int delivered = 0;
+      int processed = 0;
       if (event == null || event.getRecords() == null || event.getRecords().isEmpty()) {
         throw new IllegalArgumentException("Evento SNS vazio");
       }
@@ -48,13 +47,13 @@ public final class NotificationDeliveryHandler implements RequestHandler<SNSEven
         requestId = message.requestId();
         telemetry.addAttribute("request.id", requestId);
         sender.send(message);
-        delivered++;
+        processed++;
       }
-      telemetry.addAttribute("notification.delivered", Integer.toString(delivered));
-      logger.log("DELIVERED", requestId, elapsedMillis(startedAt), null);
-      return "delivered=" + delivered;
+      telemetry.addAttribute("notification.processed", Integer.toString(processed));
+      logger.log("PROCESSED", requestId, elapsedMillis(startedAt), null);
+      return "processed=" + processed;
     } catch (RuntimeException exception) {
-      logger.log("ERROR", requestId, elapsedMillis(startedAt), "DELIVERY_FAILED");
+      logger.log("ERROR", requestId, elapsedMillis(startedAt), "PROCESSING_FAILED");
       throw exception;
     }
   }
@@ -68,6 +67,23 @@ public final class NotificationDeliveryHandler implements RequestHandler<SNSEven
     } catch (JsonProcessingException exception) {
       throw new IllegalArgumentException("Mensagem SNS inválida", exception);
     }
+  }
+
+  static NotificationSender sender(String mode, Supplier<NotificationSender> sesSender) {
+    return switch (mode.toLowerCase(Locale.ROOT)) {
+      case "log" -> message -> {};
+      case "ses" -> sesSender.get();
+      default -> throw new IllegalStateException("NOTIFICATION_DELIVERY_MODE inválido");
+    };
+  }
+
+  private static NotificationSender senderFromEnvironment() {
+    String mode = System.getenv().getOrDefault("NOTIFICATION_DELIVERY_MODE", "log");
+    return sender(
+        mode,
+        () ->
+            new SesNotificationSender(
+                SesV2Client.create(), requiredEnvironment("NOTIFICATION_SOURCE_EMAIL")));
   }
 
   private static String requiredEnvironment(String name) {

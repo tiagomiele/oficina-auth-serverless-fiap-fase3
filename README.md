@@ -1,6 +1,6 @@
 # Oficina Auth Serverless — Fase 3
 
-Serviço serverless de autenticação por CPF e entrega assíncrona de notificações da oficina mecânica. Implementa AWS Lambda Java 21, JWT RSA, Lambda Authorizer, API Gateway HTTP API, SNS, SES e infraestrutura Terraform compatível com AWS Academy.
+Serviço serverless de autenticação por CPF e entrega assíncrona de notificações da oficina mecânica. Implementa AWS Lambda Java 21, JWT RSA, Lambda Authorizer, API Gateway HTTP API, SNS, entrega configurável por log ou SES e infraestrutura Terraform compatível com AWS Academy.
 
 ## Responsabilidades
 
@@ -10,7 +10,7 @@ Serviço serverless de autenticação por CPF e entrega assíncrona de notifica�
 - autorizar rotas protegidas no API Gateway;
 - produzir logs estruturados em JSON sem CPF ou token;
 - expor telemetria opcional no New Relic e log de acesso técnico do API Gateway;
-- aceitar notificações técnicas do backend e entregá-las de forma assíncrona por SNS e SES;
+- aceitar notificações técnicas do backend e processá-las de forma assíncrona por SNS, com entrega por log ou SES;
 - redirecionar falhas definitivas de entrega para uma DLQ;
 - provisionar os componentes serverless com a `LabRole` existente.
 
@@ -29,13 +29,14 @@ flowchart LR
     API --> NotificationApi[Lambda Ingresso]
     NotificationApi --> SNS[Amazon SNS]
     SNS --> Delivery[Lambda Entrega]
-    Delivery --> SES[Amazon SES]
+    Delivery --> Log[Log técnico sem PII]
+    Delivery -. modo opcional .-> SES[Amazon SES]
     SNS --> DLQ[SQS DLQ]
 ```
 
 ## Tecnologias
 
-- AWS Lambda, API Gateway, SNS, SQS e SES;
+- AWS Lambda, API Gateway, SNS, SQS e SES opcional;
 - Java 21;
 - JWT com assinatura assimétrica;
 - Terraform;
@@ -58,7 +59,7 @@ target/oficina-auth.jar
 
 ## Terraform
 
-O repositório cria a rota pública `POST /auth/cpf`, a rota técnica protegida `POST /internal/notifications` e seis rotas do cliente protegidas pelo Lambda Authorizer. Também cria o tópico SNS, a Lambda de entrega SES e a DLQ. Configure um workspace HCP por ambiente, execute o build antes do plan e nunca versione chaves ou credenciais.
+O repositório cria a rota pública `POST /auth/cpf`, a rota técnica protegida `POST /internal/notifications` e seis rotas do cliente protegidas pelo Lambda Authorizer. Também cria o tópico SNS, a Lambda de entrega configurável e a DLQ. O modo `log` é o padrão compatível com AWS Academy; o modo `ses` exige uma identidade previamente verificada e permissões que a `LabRole` pode bloquear. Configure um workspace HCP por ambiente, execute o build antes do plan e nunca versione chaves ou credenciais.
 
 ```bash
 ./mvnw -B -DskipTests package

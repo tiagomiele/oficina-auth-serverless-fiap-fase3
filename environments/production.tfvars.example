@@ -10,6 +10,7 @@ jwt_ttl_seconds     = 900
 
 api_detailed_metrics_enabled = true
 
+notification_delivery_mode       = "ses"
 notification_source_email        = "nao-responder@example.com"
 notification_create_ses_identity = false
 
@@ -21,5 +22,5 @@ newrelic_log_forwarding_enabled  = false
 # Configure como variáveis sensíveis no HCP Terraform:
 # db_url, db_user, db_password, jwt_private_key e notification_api_key.
 # Configure jwt_public_key no HCP e também no GitHub Environment do backend.
-# O notification_source_email deve estar verificado no SES; use create_ses_identity=true para solicitar a verificação.
+# Use notification_delivery_mode=ses somente com identidade verificada; habilite a criação apenas se a role permitir.
 # Configure newrelic_license_key como variável sensível antes de habilitar a instrumentação.
