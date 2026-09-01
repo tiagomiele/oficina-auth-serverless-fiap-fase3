@@ -63,11 +63,11 @@ O repositório cria a rota pública `POST /auth/cpf`, a rota técnica protegida 
 
 ```bash
 ./mvnw -B -DskipTests package
-terraform init -input=false
+terraform init -input=false -lockfile=readonly
 terraform plan -input=false -no-color
 ```
 
-Merges em `homolog` e `main` iniciam plan e apply automaticamente; o apply exige `TF_APPLY_ENABLED=true` e aprovação do GitHub Environment. `workflow_dispatch` permanece para reexecução controlada. Configuração ausente ou sessão AWS inválida falha explicitamente. Consulte [AWS Academy e deploy](docs/deployment.md).
+Merges em `homolog` iniciam plan e apply automaticamente. O plan usa o environment `homolog`; apply e destroy usam `homolog-apply` ou `production-apply`, exigem `TF_APPLY_ENABLED=true` e aprovação humana. Como o workflow existe em `main`, `workflow_dispatch` permite plan, apply ou destroy controlados; produção só pode ser selecionada a partir de `main`. Configuração ausente ou sessão AWS inválida falha explicitamente. Consulte [AWS Academy e deploy](docs/deployment.md).
 
 ## Observabilidade
 

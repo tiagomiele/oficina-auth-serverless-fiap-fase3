@@ -55,7 +55,7 @@ jobs:
           test -n "$TF_WORKSPACE" || { echo "Workspace do ambiente não configurado."; exit 1; }
 
       - name: Terraform init
-        run: terraform init -input=false
+        run: terraform init -input=false -lockfile=readonly
 
       - name: Terraform plan
         run: terraform plan -input=false -no-color
