@@ -15,7 +15,7 @@ Regras aplicadas em `br.com.oficina.auth.observability`:
 - `StructuredLogger` só serializa a lista fixa de campos acima;
 - `LogSanitizer` remove caracteres de controle, trunca em 64 caracteres e substitui valores com formato de documento ou sequências longas de dígitos por `REDACTED`;
 - CPF, corpo da requisição, header `Authorization`, JWT, chaves e credenciais de banco nunca são registrados;
-- `outcome` assume `SUCCESS`, `DENIED`, `INVALID_REQUEST`, `ERROR` (login), `ALLOW`, `DENY`, `ERROR` (authorizer), `ACCEPTED` (ingresso) e `DELIVERED` (entrega);
+- `outcome` assume `SUCCESS`, `DENIED`, `INVALID_REQUEST`, `ERROR` (login), `ALLOW`, `DENY`, `ERROR` (authorizer), `ACCEPTED` (ingresso) e `PROCESSED` (processamento da notificação);
 - `errorCode` usa códigos técnicos como `MISSING_CPF`, `INVALID_CPF`, `CLIENT_NOT_ELIGIBLE`, `MALFORMED_JSON`, `TOKEN_MISSING`, `TOKEN_EXPIRED`, `TOKEN_SIGNATURE_INVALID`, `TOKEN_ISSUER_INVALID`, `TOKEN_AUDIENCE_INVALID`, `TOKEN_ROLE_INVALID`, `INTERNAL_ERROR`.
 
 `requestId` é resolvido nesta ordem: header `X-Request-Id` (case-insensitive), `requestContext.requestId` do API Gateway e, por último, o `awsRequestId` da Lambda.

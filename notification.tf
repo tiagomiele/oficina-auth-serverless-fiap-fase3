@@ -94,8 +94,9 @@ resource "aws_lambda_function" "notification_delivery" {
   environment {
     variables = merge(
       {
-        NOTIFICATION_SOURCE_EMAIL = var.notification_source_email
-        ENVIRONMENT               = var.environment
+        NOTIFICATION_DELIVERY_MODE = var.notification_delivery_mode
+        NOTIFICATION_SOURCE_EMAIL  = var.notification_source_email
+        ENVIRONMENT                = var.environment
       },
       local.newrelic_environment
     )
@@ -145,7 +146,7 @@ resource "aws_sns_topic_subscription" "notification_delivery" {
 }
 
 resource "aws_ses_email_identity" "notification_source" {
-  count = var.notification_create_ses_identity ? 1 : 0
+  count = var.notification_delivery_mode == "ses" && var.notification_create_ses_identity ? 1 : 0
 
   email = var.notification_source_email
 }

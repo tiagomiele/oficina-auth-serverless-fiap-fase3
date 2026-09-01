@@ -41,7 +41,7 @@ Execute no repositório do backend:
 
 O script configura `environment`, rede, banco, chaves JWT, URL do backend, chave técnica de notificação e remetente SES. Região, issuer, audience e TTL usam defaults. A `LabRole` é derivada automaticamente da conta autenticada. Use `-ConfigureNewRelic` para as variáveis de observabilidade.
 
-No AWS Academy, a identidade do remetente usa a API clássica `VerifyEmailIdentity`, pois a `LabRole` bloqueia `CreateEmailIdentity` e `TagResource` da API SESv2. O apply solicita a verificação sem tags; confirme o e-mail enviado pela AWS antes do teste de entrega.
+No AWS Academy, use `notification_delivery_mode = "log"` e `notification_create_ses_identity = false`: a `LabRole` bloqueia `CreateEmailIdentity`, `TagResource` e `VerifyEmailIdentity`. O fluxo continua assíncrono por API Gateway, SNS e Lambda, mas registra somente o resultado técnico sem dados pessoais. Em uma conta AWS com permissão SES, use o modo `ses` e habilite opcionalmente a solicitação de verificação do remetente.
 
 As variáveis de observabilidade estão documentadas em [Observabilidade](observability.md).
 
@@ -92,7 +92,7 @@ Em execução manual ou automática, credencial ausente ou expirada interrompe o
 3. gerar `target/oficina-auth.jar`;
 4. executar o plan do workspace de autenticação;
 5. revisar recursos, rotas, tópico SNS, Lambda de entrega, DLQ e variáveis;
-6. confirmar a identidade do remetente enviada pelo SES, sem expor a chave técnica;
+6. no AWS Academy, confirmar o modo `log`; em conta com SES, confirmar previamente a identidade do remetente;
 7. executar apply somente com autorização explícita;
 8. configurar `backend_base_url` e executar novo plan para publicar as rotas protegidas;
 9. sincronizar o output `notification_endpoint` com o GitHub Environment do backend.

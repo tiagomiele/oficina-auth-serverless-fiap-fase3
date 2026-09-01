@@ -219,8 +219,19 @@ variable "notification_api_key" {
   }
 }
 
+variable "notification_delivery_mode" {
+  description = "Modo de entrega: log para ambientes sem permissão SES ou ses para envio real."
+  type        = string
+  default     = "log"
+
+  validation {
+    condition     = contains(["log", "ses"], var.notification_delivery_mode)
+    error_message = "notification_delivery_mode deve ser log ou ses."
+  }
+}
+
 variable "notification_source_email" {
-  description = "Endereço verificado no Amazon SES usado como remetente."
+  description = "Endereço verificado no Amazon SES usado como remetente quando o modo ses está habilitado."
   type        = string
 
   validation {
@@ -230,7 +241,7 @@ variable "notification_source_email" {
 }
 
 variable "notification_create_ses_identity" {
-  description = "Solicita a verificação do remetente no SES. A confirmação por e-mail continua obrigatória."
+  description = "Solicita a verificação do remetente somente quando notification_delivery_mode é ses."
   type        = bool
   default     = false
 }
