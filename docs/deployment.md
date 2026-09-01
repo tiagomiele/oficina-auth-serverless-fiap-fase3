@@ -15,14 +15,16 @@ GitHub Environments usados pelos workflows:
 
 | Environment | Uso |
 |---|---|
-| `homolog` | Plan e apply de homologação a partir de `homolog` |
-| `production` | Plan e apply de produção a partir de `main` |
+| `homolog` | Plan de homologação a partir de `homolog` |
+| `homolog-apply` | Apply e destroy de homologação |
+| `production` | Plan de produção a partir de `main` |
+| `production-apply` | Apply e destroy de produção |
 
 Secrets e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do backend. Não os copie manualmente.
 
-Merges em `homolog` ou `main` empacotam o código, validam a sessão, executam plan e iniciam o apply. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso. O apply aguarda a aprovação do GitHub Environment e exige `TF_APPLY_ENABLED=true`.
+Merges em `homolog` empacotam o código, validam a sessão, executam plan e iniciam o apply. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso. O plan usa o environment `homolog`; apply e destroy usam `homolog-apply` ou `production-apply`, aguardam aprovação e exigem `TF_APPLY_ENABLED=true`.
 
-`workflow_dispatch` permanece para reexecução: `apply_enabled=false` executa somente o plan e `true` também solicita o gate de apply.
+Como o workflow está presente em `main`, `workflow_dispatch` oferece as operações `plan`, `apply` e `destroy`. Selecione a própria branch `homolog` para homologação ou `main` para produção. Apply e destroy exigem a confirmação textual exata `APPLY-<ambiente>` ou `DESTROY-<ambiente>`; produção não pode ser executada a partir de outra branch.
 
 ## Workspaces HCP Terraform
 
@@ -64,7 +66,7 @@ export TF_CLOUD_ORGANIZATION=<organizacao>
 export TF_WORKSPACE=oficina-auth-homolog   # ou oficina-auth-production
 ./scripts/validate-aws-session.sh
 ./mvnw -B -DskipTests package
-terraform init -input=false
+terraform init -input=false -lockfile=readonly
 terraform plan -input=false -no-color
 ```
 
