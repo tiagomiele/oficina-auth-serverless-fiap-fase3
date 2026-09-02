@@ -15,16 +15,16 @@ GitHub Environments usados pelos workflows:
 
 | Environment | Uso |
 |---|---|
-| `homolog` | Plan de homologação a partir de `homolog` |
-| `homolog-apply` | Apply e destroy de homologação |
-| `production` | Plan de produção a partir de `main` |
-| `production-apply` | Apply e destroy de produção |
+| `homolog-plan` | Plan sem apply para Pull Requests destinados a `homolog` |
+| `production-plan` | Plan sem apply para Pull Requests destinados a `main` |
+| `homolog` | Apply automático após merge em `homolog`, sem aprovação manual |
+| `production` | Apply após merge em `main`, com uma única aprovação manual |
 
 Secrets e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do backend. Não os copie manualmente.
 
-Merges em `homolog` empacotam o código, validam a sessão, executam plan e iniciam o apply. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso. O plan usa o environment `homolog`; apply e destroy usam `homolog-apply` ou `production-apply`, aguardam aprovação e exigem `TF_APPLY_ENABLED=true`.
+Pull Requests destinados a `homolog` ou `main` executam um plan sem apply nos environments de plan. Merges em `homolog` empacotam o código, validam a sessão e executam plan e apply automaticamente, sem aprovação manual. Merges em `main` usam o environment `production`, que concentra a única aprovação humana antes de toda a execução. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso.
 
-Como o workflow está presente em `main`, `workflow_dispatch` oferece as operações `plan`, `apply` e `destroy`. Selecione a própria branch `homolog` para homologação ou `main` para produção. Apply e destroy exigem a confirmação textual exata `APPLY-<ambiente>` ou `DESTROY-<ambiente>`; produção não pode ser executada a partir de outra branch.
+O `workflow_dispatch` permite repetir o apply para bootstrap ou recuperação: selecione a branch `homolog` para homologação ou `main` para produção. O workflow recusa outras branches. Destroy não faz parte da esteira e deve ser executado manualmente com Terraform CLI, sem `-auto-approve`.
 
 ## Workspaces HCP Terraform
 
@@ -70,10 +70,16 @@ terraform init -input=false -lockfile=readonly
 terraform plan -input=false -no-color
 ```
 
-Apply, somente após aprovação explícita:
+Apply manual de recuperação:
 
 ```bash
 terraform apply -input=false -no-color
+```
+
+Destroy operacional, fora da esteira e com confirmação interativa:
+
+```bash
+terraform destroy -input=false -no-color
 ```
 
 ## Troubleshooting
@@ -89,14 +95,13 @@ Em execução manual ou automática, credencial ausente ou expirada interrompe o
 
 ## Ordem segura
 
-1. aplicar Kubernetes somente após aprovação;
-2. aplicar RDS e executar a migration do backend;
+1. aplicar Kubernetes e RDS na ordem do bootstrap documentado;
+2. executar a migration do backend;
 3. gerar `target/oficina-auth.jar`;
-4. executar o plan do workspace de autenticação;
-5. revisar recursos, rotas, tópico SNS, Lambda de entrega, DLQ e variáveis;
-6. no AWS Academy, confirmar o modo `log`; em conta com SES, confirmar previamente a identidade do remetente;
-7. executar apply somente com autorização explícita;
-8. configurar `backend_base_url` e executar novo plan para publicar as rotas protegidas;
-9. sincronizar o output `notification_endpoint` com o GitHub Environment do backend.
+4. revisar o plan do Pull Request;
+5. no AWS Academy, confirmar o modo `log`; em conta com SES, confirmar previamente a identidade do remetente;
+6. fazer merge em `homolog` para plan e apply automáticos;
+7. configurar `backend_base_url` e repetir o apply para publicar as rotas protegidas;
+8. sincronizar o output `notification_endpoint` com o GitHub Environment do backend.
 
 A Lambda reutiliza o security group do EKS já permitido no RDS. Nenhuma role IAM ou EKS Access Entry é criada.
