@@ -67,7 +67,7 @@ terraform init -input=false -lockfile=readonly
 terraform plan -input=false -no-color
 ```
 
-Merges em `homolog` iniciam plan e apply automaticamente. O plan usa o environment `homolog`; apply e destroy usam `homolog-apply` ou `production-apply`, exigem `TF_APPLY_ENABLED=true` e aprovação humana. Como o workflow existe em `main`, `workflow_dispatch` permite plan, apply ou destroy controlados; produção só pode ser selecionada a partir de `main`. Configuração ausente ou sessão AWS inválida falha explicitamente. Consulte [AWS Academy e deploy](docs/deployment.md).
+Pull Requests para `homolog` ou `main` executam plan sem apply. Merges em `homolog` iniciam plan e apply automaticamente, sem aprovação manual; merges em `main` usam uma única aprovação no GitHub Environment `production`. O `workflow_dispatch` permite repetir o apply a partir da branch correspondente para bootstrap ou recuperação. Destroy permanece manual via Terraform CLI e não faz parte da esteira. Configuração ausente ou sessão AWS inválida falha explicitamente. Consulte [AWS Academy e deploy](docs/deployment.md).
 
 ## Observabilidade
 
