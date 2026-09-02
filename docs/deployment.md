@@ -15,12 +15,14 @@ GitHub Environments usados pelos workflows:
 
 | Environment | Uso |
 |---|---|
-| `homolog` | Configuração dos plans sem apply e apply automático após merge em `homolog`, sem aprovação manual |
+| `homolog-plan` | Plan sem apply para Pull Requests destinados a `homolog` |
+| `production-plan` | Plan sem apply para Pull Requests destinados a `main` |
+| `homolog` | Apply automático após merge em `homolog`, sem aprovação manual |
 | `production` | Apply após merge em `main`, com uma única aprovação manual |
 
 Secrets e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do backend. Não os copie manualmente.
 
-Pull Requests destinados a `homolog` ou `main` usam o environment `homolog` como contexto de configuração e selecionam o workspace pelo destino do Pull Request, sempre sem apply. Merges em `homolog` empacotam o código, validam a sessão e executam plan e apply automaticamente, sem aprovação manual. Merges em `main` usam o environment `production`, que concentra a única aprovação humana antes de toda a execução. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso.
+Pull Requests destinados a `homolog` ou `main` executam um plan sem apply nos environments de plan. Merges em `homolog` empacotam o código, validam a sessão e executam plan e apply automaticamente, sem aprovação manual. Merges em `main` usam o environment `production`, que concentra a única aprovação humana antes de toda a execução. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso.
 
 O `workflow_dispatch` permite repetir o apply para bootstrap ou recuperação: selecione a branch `homolog` para homologação ou `main` para produção. O workflow recusa outras branches. Destroy não faz parte da esteira e deve ser executado manualmente com Terraform CLI, sem `-auto-approve`.
 
