@@ -67,7 +67,7 @@ terraform init -input=false -lockfile=readonly
 terraform plan -input=false -no-color
 ```
 
-Pull Requests para `homolog` ou `main` executam plan sem apply. Merges em `homolog` iniciam plan e apply automaticamente, sem aprovação manual; merges em `main` usam uma única aprovação no GitHub Environment `production`. O `workflow_dispatch` permite repetir o apply a partir da branch correspondente para bootstrap ou recuperação. Destroy permanece manual via Terraform CLI e não faz parte da esteira. Configuração ausente ou sessão AWS inválida falha explicitamente. Consulte [AWS Academy e deploy](docs/deployment.md).
+O CI apresenta quatro jobs sequenciais: `Repository validation → Java build and tests → Terraform validation → Security validation`. Pull Requests para `homolog` ou `main` executam plan sem apply. Em `homolog`, o deploy aparece como `Validate configuration and AWS → Package Lambda artifact → Terraform Auth → Deployment summary`; em `main`, toda a execução permanece em um único job protegido para exigir somente uma aprovação do GitHub Environment `production`. O `workflow_dispatch` permite repetir o apply a partir da branch correspondente para bootstrap ou recuperação. Destroy permanece manual via Terraform CLI e não faz parte da esteira. Configuração ausente ou sessão AWS inválida falha explicitamente. Consulte [AWS Academy e deploy](docs/deployment.md).
 
 ## Observabilidade
 
