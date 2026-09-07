@@ -20,11 +20,13 @@ GitHub Environments usados pelos workflows:
 | `homolog` | Apply automático após merge em `homolog`, sem aprovação manual |
 | `production` | Apply após merge em `main`, com uma única aprovação manual |
 
-Secrets e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do backend. Não os copie manualmente.
+Credenciais AWS, token HCP e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do Backend. A autorização de sincronização usa preferencialmente `SYNC_APP_ID` e `SYNC_APP_PRIVATE_KEY`, configurados uma única vez no nível do repositório Auth.
 
-Pull Requests destinados a `homolog` ou `main` executam um plan sem apply nos environments de plan. Em `homolog`, o workflow exibe quatro jobs sequenciais: validação da configuração e da sessão AWS → empacotamento da Lambda → plan/apply do Terraform → resumo. Merges em `main` usam um único job no environment `production`, que concentra a única aprovação humana antes de toda a execução. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso.
+Pull Requests destinados a `homolog` ou `main` executam um plan sem apply nos environments de plan. O workflow separado não exige execução manual. Após o merge, o deploy executa plan, apply, captura os outputs e sincroniza `API_GATEWAY_BASE_URL`, `AUTH_BASE_URL` e `NOTIFICATION_ENDPOINT` com o Backend no mesmo run. Em `homolog`, o workflow exibe quatro jobs sequenciais: validação da configuração e da sessão AWS → empacotamento da Lambda → plan/apply/sincronização → resumo. Merges em `main` usam um único job no environment `production`, que concentra a única aprovação humana antes de toda a execução. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso.
 
-O `workflow_dispatch` permite repetir o apply para bootstrap ou recuperação: selecione a branch `homolog` para homologação ou `main` para produção. O workflow recusa outras branches. Destroy não faz parte da esteira e deve ser executado manualmente com Terraform CLI, sem `-auto-approve`.
+A GitHub App deve estar instalada somente em `oficina-backend-fiap-fase3`, com permissão **Environments: read and write**. Configure `SYNC_APP_ID` como variable e `SYNC_APP_PRIVATE_KEY` como secret no nível do repositório Auth. O secret `GITHUB_SYNC_TOKEN` é aceito apenas como alternativa temporária de recuperação.
+
+O `workflow_dispatch` do deploy permite repetir o fluxo completo para bootstrap ou recuperação: selecione a branch `homolog` para homologação ou `main` para produção. O workflow recusa outras branches. Destroy não faz parte da esteira e deve ser executado manualmente com Terraform CLI, sem `-auto-approve`.
 
 ## Workspaces HCP Terraform
 
@@ -41,7 +43,7 @@ Execute no repositório do backend:
 .\scripts\configure-environment.ps1 -Environment homolog
 ```
 
-O script configura `environment`, rede, banco, chaves JWT, URL do backend, chave técnica de notificação e remetente SES. Região, issuer, audience e TTL usam defaults. A `LabRole` é derivada automaticamente da conta autenticada. Use `-ConfigureNewRelic` para as variáveis de observabilidade.
+O script configura `environment`, rede, banco, chaves JWT, URL do backend, chave técnica de notificação e remetente SES. Região, issuer, audience e TTL usam defaults. A `LabRole` é derivada automaticamente da conta autenticada. Use `-ConfigureNewRelic` para as variáveis de observabilidade. Após o apply, a sincronização com o Backend é automática e não exige reexecutar esse script.
 
 No AWS Academy, use `notification_delivery_mode = "log"` e `notification_create_ses_identity = false`: a `LabRole` bloqueia `CreateEmailIdentity`, `TagResource` e `VerifyEmailIdentity`. O fluxo continua assíncrono por API Gateway, SNS e Lambda, mas registra somente o resultado técnico sem dados pessoais. Em uma conta AWS com permissão SES, use o modo `ses` e habilite opcionalmente a solicitação de verificação do remetente.
 
@@ -100,8 +102,7 @@ Em execução manual ou automática, credencial ausente ou expirada interrompe o
 3. gerar `target/oficina-auth.jar`;
 4. revisar o plan do Pull Request;
 5. no AWS Academy, confirmar o modo `log`; em conta com SES, confirmar previamente a identidade do remetente;
-6. fazer merge em `homolog` para plan e apply automáticos;
-7. configurar `backend_base_url` e repetir o apply para publicar as rotas protegidas;
-8. sincronizar o output `notification_endpoint` com o GitHub Environment do backend.
+6. fazer merge em `homolog` para plan, apply e sincronização automáticos;
+7. após o primeiro deploy do Backend, configurar `backend_base_url` e repetir o deploy do Auth para publicar as rotas protegidas com o LoadBalancer real.
 
 A Lambda reutiliza o security group do EKS já permitido no RDS. Nenhuma role IAM ou EKS Access Entry é criada.
