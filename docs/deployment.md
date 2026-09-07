@@ -20,11 +20,11 @@ GitHub Environments usados pelos workflows:
 | `homolog` | Apply automático após merge em `homolog`, sem aprovação manual |
 | `production` | Apply após merge em `main`, com uma única aprovação manual |
 
-Credenciais AWS, token HCP e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do Backend. A autorização de sincronização usa preferencialmente `SYNC_APP_ID` e `SYNC_APP_PRIVATE_KEY`, configurados uma única vez no nível do repositório Auth.
+Credenciais AWS, token HCP e variables dos environments são gerenciados por `scripts/configure-environment.ps1` no repositório do Backend. A autorização de sincronização usa preferencialmente `SYNC_APP_CLIENT_ID` e `SYNC_APP_PRIVATE_KEY`, configurados uma única vez no nível do repositório Auth.
 
 Pull Requests destinados a `homolog` ou `main` executam um plan sem apply nos environments de plan. O workflow separado não exige execução manual. Após o merge, o deploy executa plan, apply, captura os outputs e sincroniza `API_GATEWAY_BASE_URL`, `AUTH_BASE_URL` e `NOTIFICATION_ENDPOINT` com o Backend no mesmo run. Em `homolog`, o workflow exibe quatro jobs sequenciais: validação da configuração e da sessão AWS → empacotamento da Lambda → plan/apply/sincronização → resumo. Merges em `main` usam um único job no environment `production`, que concentra a única aprovação humana antes de toda a execução. Configuração ausente ou credencial expirada falha explicitamente, sem falso sucesso.
 
-A GitHub App deve estar instalada somente em `oficina-backend-fiap-fase3`, com permissão **Environments: read and write**. Configure `SYNC_APP_ID` como variable e `SYNC_APP_PRIVATE_KEY` como secret no nível do repositório Auth. O secret `GITHUB_SYNC_TOKEN` é aceito apenas como alternativa temporária de recuperação.
+A GitHub App deve estar instalada somente em `oficina-backend-fiap-fase3`, com permissão **Environments: read and write**. Configure o Client ID da GitHub App como variable `SYNC_APP_CLIENT_ID` e a chave privada como secret `SYNC_APP_PRIVATE_KEY` no nível do repositório Auth. O secret `GITHUB_SYNC_TOKEN` é aceito apenas como alternativa temporária de recuperação.
 
 O `workflow_dispatch` do deploy permite repetir o fluxo completo para bootstrap ou recuperação: selecione a branch `homolog` para homologação ou `main` para produção. O workflow recusa outras branches. Destroy não faz parte da esteira e deve ser executado manualmente com Terraform CLI, sem `-auto-approve`.
 
