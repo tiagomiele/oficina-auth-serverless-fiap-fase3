@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import software.amazon.awssdk.services.sns.SnsClient;
@@ -33,7 +34,7 @@ public final class NotificationIngressHandler
   public NotificationIngressHandler() {
     this(
         new SnsNotificationPublisher(
-            SnsClient.create(), requiredEnvironment("NOTIFICATION_TOPIC_ARN")),
+            notificationClient(), requiredEnvironment("NOTIFICATION_TOPIC_ARN")),
         requiredEnvironment("NOTIFICATION_API_KEY"),
         Telemetry.fromEnvironment());
   }
@@ -125,6 +126,16 @@ public final class NotificationIngressHandler
         .map(Map.Entry::getValue)
         .findFirst()
         .orElse(null);
+  }
+
+  private static SnsClient notificationClient() {
+    return SnsClient.builder()
+        .overrideConfiguration(
+            builder ->
+                builder
+                    .apiCallAttemptTimeout(Duration.ofSeconds(3))
+                    .apiCallTimeout(Duration.ofSeconds(8)))
+        .build();
   }
 
   private static String requiredEnvironment(String name) {

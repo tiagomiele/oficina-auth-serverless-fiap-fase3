@@ -47,7 +47,7 @@ resource "aws_apigatewayv2_integration" "notification_ingress" {
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.notification_ingress.invoke_arn
   payload_format_version = "2.0"
-  timeout_milliseconds   = 15000
+  timeout_milliseconds   = 22000
 }
 
 resource "aws_apigatewayv2_route" "notification_ingress" {
