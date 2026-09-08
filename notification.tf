@@ -47,8 +47,8 @@ resource "aws_lambda_function" "notification_ingress" {
 
   filename         = var.lambda_package_path
   source_code_hash = filebase64sha256(var.lambda_package_path)
-  memory_size      = 384
-  timeout          = 15
+  memory_size      = 512
+  timeout          = 18
 
   environment {
     variables = merge(

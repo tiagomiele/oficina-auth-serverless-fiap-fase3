@@ -39,6 +39,30 @@ class NotificationIngressHandlerTest {
   }
 
   @Test
+  void reportsServiceUnavailableWhenSnsRejectsNotification() {
+    NotificationIngressHandler handler =
+        new NotificationIngressHandler(
+            message -> {
+              throw new IllegalStateException("SNS indisponível");
+            },
+            "a".repeat(32),
+            new NoopTelemetry());
+
+    APIGatewayV2HTTPResponse response =
+        handler.handleRequest(
+            event(
+                """
+                {"destinatario":"cliente@example.com","assunto":"OS atualizada","corpo":"Status atualizado"}
+                """,
+                "a".repeat(32)),
+            context);
+
+    assertEquals(503, response.getStatusCode());
+    assertFalse(context.logLines().toString().contains("cliente@example.com"));
+    assertFalse(context.logLines().toString().contains("SNS indisponível"));
+  }
+
+  @Test
   void rejectsInvalidCredentialBeforeReadingPayload() {
     AtomicReference<NotificationMessage> published = new AtomicReference<>();
     NotificationIngressHandler handler =
