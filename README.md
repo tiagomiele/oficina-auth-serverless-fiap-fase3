@@ -34,6 +34,20 @@ flowchart LR
     SNS --> DLQ[SQS DLQ]
 ```
 
+### Clean Architecture
+
+O código Java segue a direção de dependências `adapters/infrastructure → application → domain`:
+
+- `domain`: CPF, cliente autorizado, notificação e erros de validação, sem AWS SDK, JDBC, Jackson, JJWT ou New Relic;
+- `application/port/in`: contratos dos fluxos de autenticação, autorização, publicação, entrega e encaminhamento de logs;
+- `application/usecase`: orquestra as regras sem conhecer Lambda, API Gateway, RDS, SNS, SES ou New Relic;
+- `application/port/out`: abstrações de persistência, JWT, mensageria, entrega e publicação de logs;
+- `adapter/out`: implementações JDBC, JJWT, SNS, SES e New Relic;
+- `handler`: adaptadores de entrada Lambda mantidos no pacote original para preservar os FQCNs configurados no Terraform;
+- `infrastructure/config/AuthComposition`: composition root que lê a configuração externa e monta as dependências.
+
+O ArchUnit impede dependências externas em `domain` e `application`. Testes de contrato também garantem que os cinco handlers mantenham construtores públicos sem argumentos e os mesmos entrypoints usados pelo Terraform.
+
 ## Tecnologias
 
 - AWS Lambda, API Gateway, SNS, SQS e SES opcional;
@@ -49,7 +63,7 @@ flowchart LR
 ./mvnw -B verify spotless:check
 ```
 
-Os testes cobrem login com sucesso, CPF inválido, ausente, inexistente e inativo, JSON inválido, claims do JWT, token ausente, inválido, expirado, com emissor ou audiência incorretos, allow e deny do Authorizer, logs estruturados, encaminhamento de log de acesso e o fluxo assíncrono de notificações sem PII nos logs.
+Os testes cobrem os casos de uso com portas em memória, regras de dependência da Clean Architecture com ArchUnit, compatibilidade dos handlers Terraform, login com sucesso, CPF inválido, ausente, inexistente e inativo, JSON inválido, claims do JWT, token ausente, inválido, expirado, com emissor ou audiência incorretos, allow e deny do Authorizer, logs estruturados, encaminhamento de log de acesso e o fluxo assíncrono de notificações sem PII nos logs.
 
 O artefato compartilhado pelas Lambdas é gerado em:
 

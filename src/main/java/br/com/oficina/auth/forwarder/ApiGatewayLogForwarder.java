@@ -1,27 +1,26 @@
 package br.com.oficina.auth.forwarder;
 
+import br.com.oficina.auth.application.port.in.ForwardAccessLogs;
+import br.com.oficina.auth.application.port.out.AccessLogPublisherPort;
+import br.com.oficina.auth.application.usecase.ForwardAccessLogsUseCase;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 public final class ApiGatewayLogForwarder {
 
-  private final NewRelicLogsClient client;
+  private final ForwardAccessLogs forwarder;
 
-  public ApiGatewayLogForwarder(NewRelicLogsClient client) {
-    this.client = client;
+  public ApiGatewayLogForwarder(AccessLogPublisherPort publisher) {
+    this.forwarder = new ForwardAccessLogsUseCase(publisher);
   }
 
-  /**
-   * Envia somente os registros de acesso reconhecidos e sanitizados. Retorna quantos foram aceitos.
-   */
   public int forward(CloudWatchLogsPayload payload) {
     List<Map<String, Object>> sanitized =
         payload.records().stream()
             .map(record -> AccessLogSanitizer.sanitize(record.message()))
             .flatMap(Optional::stream)
             .toList();
-    client.send(sanitized);
-    return sanitized.size();
+    return forwarder.forward(sanitized);
   }
 }

@@ -1,8 +1,10 @@
 package br.com.oficina.auth.handler;
 
+import br.com.oficina.auth.application.port.in.PublishNotification;
+import br.com.oficina.auth.application.usecase.PublishNotificationUseCase;
+import br.com.oficina.auth.infrastructure.config.AuthComposition;
 import br.com.oficina.auth.notification.NotificationMessage;
 import br.com.oficina.auth.notification.NotificationPublisher;
-import br.com.oficina.auth.notification.SnsNotificationPublisher;
 import br.com.oficina.auth.observability.RequestIdentity;
 import br.com.oficina.auth.observability.StructuredLogger;
 import br.com.oficina.auth.observability.Telemetry;
@@ -15,10 +17,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
-import software.amazon.awssdk.services.sns.SnsClient;
 
 public final class NotificationIngressHandler
     implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
@@ -27,22 +27,31 @@ public final class NotificationIngressHandler
   private static final String API_KEY_HEADER = "x-notification-key";
   private static final ObjectMapper JSON = new ObjectMapper();
 
-  private final NotificationPublisher publisher;
+  private final PublishNotification publishNotification;
   private final String apiKey;
   private final Telemetry telemetry;
 
   public NotificationIngressHandler() {
-    this(
-        new SnsNotificationPublisher(
-            notificationClient(), requiredEnvironment("NOTIFICATION_TOPIC_ARN")),
-        requiredEnvironment("NOTIFICATION_API_KEY"),
-        Telemetry.fromEnvironment());
+    this(AuthComposition.notificationIngress());
   }
 
   NotificationIngressHandler(NotificationPublisher publisher, String apiKey, Telemetry telemetry) {
-    this.publisher = publisher;
+    this(
+        new PublishNotificationUseCase(
+            notification -> publisher.publish(NotificationMessage.fromDomain(notification))),
+        apiKey,
+        telemetry);
+  }
+
+  NotificationIngressHandler(
+      PublishNotification publishNotification, String apiKey, Telemetry telemetry) {
+    this.publishNotification = publishNotification;
     this.apiKey = apiKey;
     this.telemetry = telemetry;
+  }
+
+  private NotificationIngressHandler(AuthComposition.NotificationIngressDependencies dependencies) {
+    this(dependencies.useCase(), dependencies.apiKey(), dependencies.telemetry());
   }
 
   @Override
@@ -61,13 +70,11 @@ public final class NotificationIngressHandler
     }
     try {
       JsonNode payload = JSON.readTree(requestBody(event));
-      NotificationMessage message =
-          new NotificationMessage(
-              payload.path("destinatario").asText(null),
-              payload.path("assunto").asText(null),
-              payload.path("corpo").asText(null),
-              requestId);
-      publisher.publish(message);
+      publishNotification.publish(
+          payload.path("destinatario").asText(null),
+          payload.path("assunto").asText(null),
+          payload.path("corpo").asText(null),
+          requestId);
       logger.log("ACCEPTED", requestId, elapsedMillis(startedAt), null);
       return HttpResponses.json(
           202, Map.of("status", "ACCEPTED", "requestId", requestId), requestId);
@@ -126,24 +133,6 @@ public final class NotificationIngressHandler
         .map(Map.Entry::getValue)
         .findFirst()
         .orElse(null);
-  }
-
-  private static SnsClient notificationClient() {
-    return SnsClient.builder()
-        .overrideConfiguration(
-            builder ->
-                builder
-                    .apiCallAttemptTimeout(Duration.ofSeconds(3))
-                    .apiCallTimeout(Duration.ofSeconds(8)))
-        .build();
-  }
-
-  private static String requiredEnvironment(String name) {
-    String value = System.getenv(name);
-    if (value == null || value.isBlank()) {
-      throw new IllegalStateException(name + " não configurada");
-    }
-    return value;
   }
 
   private static long elapsedMillis(long startedAt) {

@@ -1,27 +1,28 @@
 package br.com.oficina.auth.notification;
 
-import java.util.regex.Pattern;
-
 public record NotificationMessage(
     String destination, String subject, String body, String requestId) {
 
-  private static final Pattern EMAIL =
-      Pattern.compile("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$", Pattern.CASE_INSENSITIVE);
-
   public NotificationMessage {
-    destination = required(destination, "destination", 320);
-    subject = required(subject, "subject", 200);
-    body = required(body, "body", 5_000);
-    requestId = required(requestId, "requestId", 128);
-    if (!EMAIL.matcher(destination).matches()) {
-      throw new IllegalArgumentException("destination inválido");
-    }
+    br.com.oficina.auth.domain.NotificationMessage validated =
+        new br.com.oficina.auth.domain.NotificationMessage(destination, subject, body, requestId);
+    destination = validated.destination();
+    subject = validated.subject();
+    body = validated.body();
+    requestId = validated.requestId();
   }
 
-  private static String required(String value, String field, int maximumLength) {
-    if (value == null || value.isBlank() || value.length() > maximumLength) {
-      throw new IllegalArgumentException(field + " inválido");
-    }
-    return value.strip();
+  public br.com.oficina.auth.domain.NotificationMessage toDomain() {
+    return new br.com.oficina.auth.domain.NotificationMessage(
+        destination, subject, body, requestId);
+  }
+
+  public static NotificationMessage fromDomain(
+      br.com.oficina.auth.domain.NotificationMessage notification) {
+    return new NotificationMessage(
+        notification.destination(),
+        notification.subject(),
+        notification.body(),
+        notification.requestId());
   }
 }

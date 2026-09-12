@@ -1,9 +1,5 @@
 package br.com.oficina.auth.application;
 
-import br.com.oficina.auth.domain.Cpf;
-import java.util.Optional;
+import br.com.oficina.auth.application.port.out.ClientRepositoryPort;
 
-public interface ClienteDirectory {
-
-  Optional<Long> findActiveClientId(Cpf cpf);
-}
+public interface ClienteDirectory extends ClientRepositoryPort {}
