@@ -1,10 +1,12 @@
 package br.com.oficina.auth.handler;
 
 import br.com.oficina.auth.application.ClienteDirectory;
+import br.com.oficina.auth.application.port.in.AuthenticateClient;
+import br.com.oficina.auth.application.usecase.AuthenticateClientUseCase;
 import br.com.oficina.auth.config.AuthConfig;
-import br.com.oficina.auth.domain.Cpf;
 import br.com.oficina.auth.infrastructure.ClienteRepository;
 import br.com.oficina.auth.infrastructure.JwtService;
+import br.com.oficina.auth.infrastructure.config.AuthComposition;
 import br.com.oficina.auth.observability.RequestIdentity;
 import br.com.oficina.auth.observability.StructuredLogger;
 import br.com.oficina.auth.observability.Telemetry;
@@ -24,29 +26,32 @@ public final class CpfAuthenticationHandler
   private static final String FUNCTION = "auth-cpf-login";
   private static final ObjectMapper JSON = new ObjectMapper();
 
-  private final ClienteDirectory clients;
-  private final JwtService tokens;
-  private final long ttlSeconds;
+  private final AuthenticateClient authenticateClient;
   private final Telemetry telemetry;
 
   public CpfAuthenticationHandler() {
-    this(AuthConfig.loginFromEnvironment());
+    this(AuthComposition.login());
   }
 
   CpfAuthenticationHandler(AuthConfig config) {
     this(
-        new ClienteRepository(config),
-        new JwtService(config),
-        config.jwtTtlSeconds(),
+        new AuthenticateClientUseCase(
+            new ClienteRepository(config), new JwtService(config), config.jwtTtlSeconds()),
         Telemetry.fromEnvironment());
   }
 
   CpfAuthenticationHandler(
       ClienteDirectory clients, JwtService tokens, long ttlSeconds, Telemetry telemetry) {
-    this.clients = clients;
-    this.tokens = tokens;
-    this.ttlSeconds = ttlSeconds;
+    this(new AuthenticateClientUseCase(clients, tokens, ttlSeconds), telemetry);
+  }
+
+  CpfAuthenticationHandler(AuthenticateClient authenticateClient, Telemetry telemetry) {
+    this.authenticateClient = authenticateClient;
     this.telemetry = telemetry;
+  }
+
+  private CpfAuthenticationHandler(AuthComposition.LoginDependencies dependencies) {
+    this(dependencies.useCase(), dependencies.telemetry());
   }
 
   @Override
@@ -65,11 +70,10 @@ public final class CpfAuthenticationHandler
             "MISSING_CPF",
             error(400, "INVALID_REQUEST", "Informe o campo cpf.", requestId));
       }
-      Cpf cpf = Cpf.parse(cpfRaw);
-      return clients
-          .findActiveClientId(cpf)
+      return authenticateClient
+          .authenticate(cpfRaw)
           .map(
-              clientId ->
+              result ->
                   invocation.finish(
                       "SUCCESS",
                       null,
@@ -77,11 +81,11 @@ public final class CpfAuthenticationHandler
                           200,
                           Map.of(
                               "accessToken",
-                              tokens.issue(clientId),
+                              result.accessToken(),
                               "tokenType",
-                              "Bearer",
+                              result.tokenType(),
                               "expiresIn",
-                              ttlSeconds),
+                              result.expiresIn()),
                           requestId)))
           .orElseGet(
               () ->

@@ -2,8 +2,7 @@ package br.com.oficina.auth.handler;
 
 import br.com.oficina.auth.forwarder.ApiGatewayLogForwarder;
 import br.com.oficina.auth.forwarder.CloudWatchLogsPayload;
-import br.com.oficina.auth.forwarder.ForwarderConfig;
-import br.com.oficina.auth.forwarder.HttpNewRelicLogsClient;
+import br.com.oficina.auth.infrastructure.config.AuthComposition;
 import br.com.oficina.auth.observability.StructuredLogger;
 import br.com.oficina.auth.observability.Telemetry;
 import com.amazonaws.services.lambda.runtime.Context;
@@ -19,14 +18,16 @@ public final class ApiGatewayLogForwarderHandler
   private final Telemetry telemetry;
 
   public ApiGatewayLogForwarderHandler() {
-    this(
-        new ApiGatewayLogForwarder(new HttpNewRelicLogsClient(ForwarderConfig.fromEnvironment())),
-        Telemetry.fromEnvironment());
+    this(AuthComposition.logForwarder());
   }
 
   ApiGatewayLogForwarderHandler(ApiGatewayLogForwarder forwarder, Telemetry telemetry) {
     this.forwarder = forwarder;
     this.telemetry = telemetry;
+  }
+
+  private ApiGatewayLogForwarderHandler(AuthComposition.LogForwarderDependencies dependencies) {
+    this(dependencies.forwarder(), dependencies.telemetry());
   }
 
   @Override

@@ -59,9 +59,33 @@ jobs:
         run: terraform init -input=false -lockfile=readonly
 
       - name: Terraform plan
-        run: terraform plan -input=false -no-color
+        id: plan
+        run: |
+          set +e
+          terraform plan -input=false -no-color 2>&1 | tee /tmp/terraform-plan.log
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if grep -Eq 'ExpiredToken|security token included in the request is expired' /tmp/terraform-plan.log; then
+            echo '::warning::Plan remoto ignorado porque a sessão AWS Academy do workspace expirou.'
+            {
+              echo '## Plan não executado'
+              echo
+              echo '- motivo: sessão AWS Academy expirada no workspace HCP Terraform'
+              echo '- ação: renovar as credenciais antes do próximo deploy'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo 'skipped=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          exit "$status"
 
       - name: Summary
+        if: steps.plan.outputs.skipped != 'true'
         run: |
           {
             echo "## Plan de ${TARGET_ENVIRONMENT}"

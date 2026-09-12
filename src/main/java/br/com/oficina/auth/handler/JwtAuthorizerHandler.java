@@ -1,14 +1,16 @@
 package br.com.oficina.auth.handler;
 
-import br.com.oficina.auth.config.AuthConfig;
+import br.com.oficina.auth.application.port.in.AuthorizeToken;
+import br.com.oficina.auth.application.usecase.AuthorizeTokenUseCase;
+import br.com.oficina.auth.domain.AuthorizedClient;
 import br.com.oficina.auth.domain.TokenValidationException;
 import br.com.oficina.auth.infrastructure.JwtService;
+import br.com.oficina.auth.infrastructure.config.AuthComposition;
 import br.com.oficina.auth.observability.RequestIdentity;
 import br.com.oficina.auth.observability.StructuredLogger;
 import br.com.oficina.auth.observability.Telemetry;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import io.jsonwebtoken.Claims;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,16 +20,24 @@ public final class JwtAuthorizerHandler
 
   private static final String FUNCTION = "auth-jwt-authorizer";
 
-  private final JwtService tokens;
+  private final AuthorizeToken authorizeToken;
   private final Telemetry telemetry;
 
   public JwtAuthorizerHandler() {
-    this(new JwtService(AuthConfig.authorizerFromEnvironment()), Telemetry.fromEnvironment());
+    this(AuthComposition.authorizer());
   }
 
   JwtAuthorizerHandler(JwtService tokens, Telemetry telemetry) {
-    this.tokens = tokens;
+    this(new AuthorizeTokenUseCase(tokens), telemetry);
+  }
+
+  JwtAuthorizerHandler(AuthorizeToken authorizeToken, Telemetry telemetry) {
+    this.authorizeToken = authorizeToken;
     this.telemetry = telemetry;
+  }
+
+  private JwtAuthorizerHandler(AuthComposition.AuthorizerDependencies dependencies) {
+    this(dependencies.useCase(), dependencies.telemetry());
   }
 
   @Override
@@ -38,11 +48,11 @@ public final class JwtAuthorizerHandler
         new StructuredLogger(FUNCTION, telemetry, line -> context.getLogger().log(line + "\n"));
     telemetry.addAttribute("request.id", requestId);
     try {
-      Claims claims = tokens.verify(bearerToken(event));
+      AuthorizedClient client = authorizeToken.authorize(bearerToken(event));
       Map<String, Object> authorizerContext = new LinkedHashMap<>();
-      authorizerContext.put("subject", claims.getSubject());
-      authorizerContext.put("clientId", claims.get("client_id", Long.class));
-      authorizerContext.put("role", claims.get("role", String.class));
+      authorizerContext.put("subject", client.subject());
+      authorizerContext.put("clientId", client.clientId());
+      authorizerContext.put("role", client.role());
       authorizerContext.put("requestId", requestId);
       telemetry.addAttribute("authorization.outcome", "ALLOW");
       logger.log("ALLOW", requestId, elapsedMillis(startedAt), null);

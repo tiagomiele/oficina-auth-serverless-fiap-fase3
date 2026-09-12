@@ -1,8 +1,10 @@
 package br.com.oficina.auth.handler;
 
-import br.com.oficina.auth.notification.NotificationMessage;
+import br.com.oficina.auth.application.port.in.DeliverNotification;
+import br.com.oficina.auth.application.usecase.DeliverNotificationUseCase;
+import br.com.oficina.auth.domain.NotificationMessage;
+import br.com.oficina.auth.infrastructure.config.AuthComposition;
 import br.com.oficina.auth.notification.NotificationSender;
-import br.com.oficina.auth.notification.SesNotificationSender;
 import br.com.oficina.auth.observability.StructuredLogger;
 import br.com.oficina.auth.observability.Telemetry;
 import com.amazonaws.services.lambda.runtime.Context;
@@ -10,25 +12,39 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.SNSEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
-import software.amazon.awssdk.services.sesv2.SesV2Client;
 
 public final class NotificationDeliveryHandler implements RequestHandler<SNSEvent, String> {
 
   private static final String FUNCTION = "notification-delivery";
   private static final ObjectMapper JSON = new ObjectMapper();
 
-  private final NotificationSender sender;
+  private final DeliverNotification deliverNotification;
   private final Telemetry telemetry;
 
   public NotificationDeliveryHandler() {
-    this(senderFromEnvironment(), Telemetry.fromEnvironment());
+    this(AuthComposition.notificationDelivery());
   }
 
   NotificationDeliveryHandler(NotificationSender sender, Telemetry telemetry) {
-    this.sender = sender;
+    this(
+        new DeliverNotificationUseCase(
+            notification ->
+                sender.send(
+                    br.com.oficina.auth.notification.NotificationMessage.fromDomain(notification))),
+        telemetry);
+  }
+
+  NotificationDeliveryHandler(DeliverNotification deliverNotification, Telemetry telemetry) {
+    this.deliverNotification = deliverNotification;
     this.telemetry = telemetry;
+  }
+
+  private NotificationDeliveryHandler(
+      AuthComposition.NotificationDeliveryDependencies dependencies) {
+    this(dependencies.useCase(), dependencies.telemetry());
   }
 
   @Override
@@ -38,16 +54,15 @@ public final class NotificationDeliveryHandler implements RequestHandler<SNSEven
     StructuredLogger logger =
         new StructuredLogger(FUNCTION, telemetry, line -> context.getLogger().log(line + "\n"));
     try {
-      int processed = 0;
       if (event == null || event.getRecords() == null || event.getRecords().isEmpty()) {
         throw new IllegalArgumentException("Evento SNS vazio");
       }
+      int processed = 0;
       for (SNSEvent.SNSRecord record : event.getRecords()) {
-        NotificationMessage message = parse(record);
-        requestId = message.requestId();
+        NotificationMessage notification = parse(record);
+        requestId = notification.requestId();
         telemetry.addAttribute("request.id", requestId);
-        sender.send(message);
-        processed++;
+        processed += deliverNotification.deliver(List.of(notification));
       }
       telemetry.addAttribute("notification.processed", Integer.toString(processed));
       logger.log("PROCESSED", requestId, elapsedMillis(startedAt), null);
@@ -71,27 +86,10 @@ public final class NotificationDeliveryHandler implements RequestHandler<SNSEven
 
   static NotificationSender sender(String mode, Supplier<NotificationSender> sesSender) {
     return switch (mode.toLowerCase(Locale.ROOT)) {
-      case "log" -> message -> {};
+      case "log" -> notification -> {};
       case "ses" -> sesSender.get();
       default -> throw new IllegalStateException("NOTIFICATION_DELIVERY_MODE inválido");
     };
-  }
-
-  private static NotificationSender senderFromEnvironment() {
-    String mode = System.getenv().getOrDefault("NOTIFICATION_DELIVERY_MODE", "log");
-    return sender(
-        mode,
-        () ->
-            new SesNotificationSender(
-                SesV2Client.create(), requiredEnvironment("NOTIFICATION_SOURCE_EMAIL")));
-  }
-
-  private static String requiredEnvironment(String name) {
-    String value = System.getenv(name);
-    if (value == null || value.isBlank()) {
-      throw new IllegalStateException(name + " não configurada");
-    }
-    return value;
   }
 
   private static long elapsedMillis(long startedAt) {
